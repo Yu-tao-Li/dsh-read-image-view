@@ -3,7 +3,7 @@
 # dsh-read-image
 
 [![CI](https://github.com/Yu-tao-Li/dsh-read-image/actions/workflows/ci.yml/badge.svg)](https://github.com/Yu-tao-Li/dsh-read-image/actions/workflows/ci.yml)
-[![version](https://img.shields.io/badge/version-0.1.0-blue)](https://github.com/Yu-tao-Li/dsh-read-image/releases)
+[![version](https://img.shields.io/github/v/release/Yu-tao-Li/dsh-read-image?label=version)](https://github.com/Yu-tao-Li/dsh-read-image/releases)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 ![platform](https://img.shields.io/badge/platform-Web%20GUI-6E56CF)
 [![stars](https://img.shields.io/github/stars/Yu-tao-Li/dsh-read-image?style=social)](https://github.com/Yu-tao-Li/dsh-read-image)
