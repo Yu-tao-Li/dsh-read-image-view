@@ -1,0 +1,66 @@
+{
+  "name": "dsh-read-image",
+  "version": "0.1.0",
+  "description": "Render read_image tool results as real images in the DeepSeek Harness Web GUI: a dedicated Read image row (thumbnail with original-image lightbox, retry) plus the metadata envelope, and the same image in the Inspect details panel. 在 Web GUI 对话流中把 read_image 的结果渲染成真实图片。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./read-image-core": "./lib/read-image-core.mjs",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "src",
+    "scripts",
+    "test",
+    "docs",
+    "assets",
+    "cordis.patch.yml",
+    "README.md",
+    "README.en.md",
+    "LICENSE",
+    "PUBLISH.md"
+  ],
+  "scripts": {
+    "build": "node scripts/build-client.mjs",
+    "check": "node scripts/build-client.mjs --check",
+    "test": "node --test"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "read-image",
+    "image",
+    "attachment",
+    "web",
+    "ui",
+    "conversation"
+  ],
+  "author": "Yu-tao-Li",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Yu-tao-Li/dsh-read-image.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Yu-tao-Li/dsh-read-image/issues"
+  },
+  "homepage": "https://github.com/Yu-tao-Li/dsh-read-image#readme",
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime"
+      ],
+      "platform": "web"
+    }
+  }
+}
