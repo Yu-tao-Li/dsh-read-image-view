@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    # Pure logic + bundle sync: no desktop or browser needed.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # No install step: the package has zero runtime dependencies.
+
+      # The committed bundle must match its sources (src/ + core).
+      - name: Bundle sync check
+        run: node scripts/build-client.mjs --check
+
+      # Core unit tests (imageCardModel, session.attachment RPC, labels).
+      - name: Core unit tests
+        run: node --test
