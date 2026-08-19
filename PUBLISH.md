@@ -30,13 +30,13 @@
 ### 第 1 步：推 GitHub
 
 ```powershell
-gh repo create dsh-read-image --public --source . --push
+gh repo create dsh-read-image-view --public --source . --push
 ```
 
 ### 第 2 步：给仓库加 topic
 
 ```powershell
-gh repo edit Yu-tao-Li/dsh-read-image --add-topic dsh-plugin
+gh repo edit Yu-tao-Li/dsh-read-image-view --add-topic dsh-plugin
 ```
 
 ### 第 3 步：凑"仓库年龄 + 提交数"
@@ -52,17 +52,17 @@ git clone https://github.com/awesome-dsh-plugin/awesome-dsh-plugin
 cd awesome-dsh-plugin
 # 1) 收录条目
 mkdir -p data/plugins
-cp <本仓库>/publish/awesome-list-entry.yml data/plugins/Yu-tao-Li__dsh-read-image.yml
+cp <本仓库>/publish/awesome-list-entry.yml data/plugins/Yu-tao-Li__dsh-read-image-view.yml
 # 2) 截图：把 publish/screenshots.json 的内容合并进 data/screenshots.json
 # 3) 重新生成 README（必须，CI 会校验）
 npm ci
 node scripts/generate-readme.mjs
 # 4) 提交 + 推送 + 开 PR
-git add data/plugins/Yu-tao-Li__dsh-read-image.yml data/screenshots.json README.md README.zh.md
-git commit -m "Add Yu-tao-Li/dsh-read-image"
+git add data/plugins/Yu-tao-Li__dsh-read-image-view.yml data/screenshots.json README.md README.zh.md
+git commit -m "Add Yu-tao-Li/dsh-read-image-view"
 git push origin HEAD
 gh pr create --repo awesome-dsh-plugin/awesome-dsh-plugin \
-  --title "Add Yu-tao-Li/dsh-read-image" \
+  --title "Add Yu-tao-Li/dsh-read-image-view" \
   --body "Render read_image tool results as real images in the DSH Web GUI conversation flow."
 ```
 
@@ -77,18 +77,18 @@ gh pr create --repo awesome-dsh-plugin/awesome-dsh-plugin \
 网站与 dshmarket 自动重建，插件即上架。用户侧：
 
 ```powershell
-dsh plugin --profile web add github:Yu-tao-Li/dsh-read-image
-# 或在 DSH 设置里的插件市场（dshmarket）搜索 "dsh-read-image" 一键安装
+dsh plugin --profile web add github:Yu-tao-Li/dsh-read-image-view
+# 或在 DSH 设置里的插件市场（dshmarket）搜索 "dsh-read-image-view" 一键安装
 ```
 
 重启 `dsh web` 生效。
 
 ## 可选加分项
 
-- **npm 发布**：`npm publish`（包名 `dsh-read-image` 需先 `npm whoami` / 查占用）；
+- **npm 发布**：`npm publish`（包名 `dsh-read-image-view` 需先 `npm whoami` / 查占用）；
   发布后收录条目加 `npm:` 字段，安装免构建授权。
 - **GitHub Release tarball**：`npm pack` 出 tgz 挂到 Release，条目里加
-  `tarball: https://github.com/Yu-tao-Li/dsh-read-image/releases/latest/download/dsh-read-image-<ver>.tgz`。
+  `tarball: https://github.com/Yu-tao-Li/dsh-read-image-view/releases/latest/download/dsh-read-image-view-<ver>.tgz`。
 - **徽章**：上架后 README 加
   `[![Awesome DSH Plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com)`。
 

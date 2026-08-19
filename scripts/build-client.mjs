@@ -1,10 +1,10 @@
 /**
- * dsh-read-image client bundle builder.
+ * dsh-read-image-view client bundle builder.
  *
  * Inlines lib/read-image-core.mjs (pure logic, unit-tested in Node) into
  * src/client-src.js at the /*__READ_IMAGE_CORE__*\/ placeholder, producing
  * the self-contained classic-script bundle lib/client.js that the web host
- * serves under /plugins/dsh-read-image/client.js.
+ * serves under /plugins/dsh-read-image-view/client.js.
  *
  * Usage:
  *   node scripts/build-client.mjs          # (re)write lib/client.js

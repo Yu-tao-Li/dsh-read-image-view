@@ -21,6 +21,6 @@ jobs:
       - name: Bundle sync check
         run: node scripts/build-client.mjs --check
 
-      # Core unit tests (imageCardModel, session.attachment RPC, labels).
+      # Core unit tests (imageCardModel, session.attachment RPC, zoom/fit, labels).
       - name: Core unit tests
-        run: node --test
+        run: node --test test/read-image-core.test.mjs

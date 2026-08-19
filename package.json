@@ -1,7 +1,7 @@
 {
-  "name": "dsh-read-image",
-  "version": "0.1.0",
-  "description": "Render read_image tool results as real images in the DeepSeek Harness Web GUI: a dedicated Read image row (thumbnail with original-image lightbox, retry) plus the metadata envelope, and the same image in the Inspect details panel. 在 Web GUI 对话流中把 read_image 的结果渲染成真实图片。",
+  "name": "dsh-read-image-view",
+  "version": "0.2.1",
+  "description": "Display images read by the read_image tool inside the DeepSeek Harness Web GUI: a dedicated Read image row with a default thumbnail and an in-page full-resolution lightbox (zoom buttons, mouse wheel, 1:1 original size) plus the metadata envelope. 在 Web GUI 对话流中展示 read_image 读到的图片：默认缩略图 + 页面内全精度放大层。",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -26,7 +26,11 @@
   "scripts": {
     "build": "node scripts/build-client.mjs",
     "check": "node scripts/build-client.mjs --check",
-    "test": "node --test"
+    "test": "node --test test/read-image-core.test.mjs",
+    "e2e": "node test/e2e-read-image.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.52.0"
   },
   "keywords": [
     "deepseek-harness",
@@ -42,12 +46,12 @@
   "author": "Yu-tao-Li",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Yu-tao-Li/dsh-read-image.git"
+    "url": "git+https://github.com/Yu-tao-Li/dsh-read-image-view.git"
   },
   "bugs": {
-    "url": "https://github.com/Yu-tao-Li/dsh-read-image/issues"
+    "url": "https://github.com/Yu-tao-Li/dsh-read-image-view/issues"
   },
-  "homepage": "https://github.com/Yu-tao-Li/dsh-read-image#readme",
+  "homepage": "https://github.com/Yu-tao-Li/dsh-read-image-view#readme",
   "engines": {
     "node": ">=22"
   },

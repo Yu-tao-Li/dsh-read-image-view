@@ -1,8 +1,8 @@
 # 收录条目 —— 提交到 awesome-dsh-plugin 仓库时，放到：
-#   data/plugins/Yu-tao-Li__dsh-read-image.yml
+#   data/plugins/Yu-tao-Li__dsh-read-image-view.yml
 # 注意：英文描述含 ": "（冒号+空格），按规则必须加引号。
-url: https://github.com/Yu-tao-Li/dsh-read-image
-name: Yu-tao-Li/dsh-read-image
+url: https://github.com/Yu-tao-Li/dsh-read-image-view
+name: Yu-tao-Li/dsh-read-image-view
 category: tools
 description:
   en: 'Render read_image tool results as real images in the DSH Web GUI conversation flow: a dedicated Read image row with the attached image (lightbox, retry) plus the metadata envelope, and the same image in the Inspect details panel.'

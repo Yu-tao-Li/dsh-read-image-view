@@ -1,5 +1,5 @@
 /**
- * dsh-read-image core unit tests (Node, zero dependencies).
+ * dsh-read-image-view core unit tests (Node, zero dependencies).
  *
  * Covers the wire-shape validation of imageCardModel, the session.attachment
  * RPC round-trip (dependency-injected fetch, base64 decode, error surfacing),
@@ -13,7 +13,11 @@ import {
 	imageCardModel,
 	attachmentCacheKey,
 	fetchAttachmentBytes,
-	imageGalleryLabels
+	imageGalleryLabels,
+	singleFitSize,
+	clampZoom,
+	clampZoomPct,
+	fitZoomPct
 } from "../lib/read-image-core.mjs";
 
 /** A settled tool result node with one text part and one image part. */
@@ -205,4 +209,79 @@ test("imageGalleryLabels: resolves the conversation image.* keys", () => {
 	assert.equal(labels.lightbox.close, "<image.closePreview>");
 	assert.equal(labels.openNamed("x.png"), "<image.openOriginalLabel>");
 	assert.deepEqual(calls.at(-1), ["image.openOriginalLabel", { label: "x.png" }]);
+});
+
+test("singleFitSize: 240px long edge, never upscaled", () => {
+	// Wide landscape: 240 on the width, height proportional.
+	const wide = singleFitSize(1400, 748);
+	assert.equal(wide.width, 240);
+	assert.ok(wide.height > 110 && wide.height < 130);
+	assert.equal(wide.objectPosition, "center");
+	// Small image: not upscaled past natural size.
+	const small = singleFitSize(80, 50);
+	assert.equal(small.width, 80);
+	assert.equal(small.height, 50);
+	// Portrait: 240 on the height.
+	const tall = singleFitSize(320, 480);
+	assert.equal(tall.width, 160);
+	assert.equal(tall.height, 240);
+});
+
+test("singleFitSize: extreme ratios clamp to [0.25, 4] with anchored crops", () => {
+	const veryTall = singleFitSize(40, 400);
+	assert.equal(veryTall.objectPosition, "center top");
+	// Clamped base is 60x240, but the natural 40px width is never upscaled.
+	assert.equal(veryTall.width, 40);
+	assert.equal(veryTall.height, 160);
+	const veryWide = singleFitSize(800, 100);
+	assert.equal(veryWide.objectPosition, "left center");
+	assert.equal(veryWide.width, 240);
+	assert.equal(veryWide.height, 60);
+});
+
+test("singleFitSize: missing dimensions fall back to a sane square", () => {
+	const fallback = singleFitSize(undefined, undefined);
+	assert.ok(fallback.width >= 1 && fallback.height >= 1);
+	const nan = singleFitSize(NaN, 100);
+	assert.ok(Number.isFinite(nan.width) && Number.isFinite(nan.height));
+});
+
+test("clampZoom: clamps to [0.2, 8] and sanitizes non-finite input", () => {
+	assert.equal(clampZoom(1), 1);
+	assert.equal(clampZoom(8), 8);
+	assert.equal(clampZoom(800), 8);
+	assert.equal(clampZoom(0.2), 0.2);
+	assert.equal(clampZoom(0.001), 0.2);
+	assert.equal(clampZoom(NaN), 1);
+	assert.equal(clampZoom(undefined), 1);
+	// Wheel-style multiplicative steps stay within bounds.
+	let z = 1;
+	for (let i = 0; i < 50; i++) z = clampZoom(z * 1.1);
+	assert.ok(z <= 8);
+	for (let i = 0; i < 50; i++) z = clampZoom(z / 1.1);
+	assert.ok(z >= 0.2);
+});
+
+test("clampZoomPct: clamps to [10, 800] and sanitizes non-finite input", () => {
+	assert.equal(clampZoomPct(100), 100);
+	assert.equal(clampZoomPct(800), 800);
+	assert.equal(clampZoomPct(9000), 800);
+	assert.equal(clampZoomPct(10), 10);
+	assert.equal(clampZoomPct(1), 10);
+	assert.equal(clampZoomPct(NaN), 100);
+	assert.equal(clampZoomPct(undefined), 100);
+});
+
+test("fitZoomPct: fits the viewport, caps at 100 (no upscale on open)", () => {
+	// Large image: fitted below 100%.
+	const big = fitZoomPct(1600, 1000, 2135, 717);
+	assert.ok(big > 0 && big < 100);
+	assert.ok(Math.abs(big - ((0.92 * 1600) / 2135) * 100) < 1);
+	// Small image: capped at 100 (1:1), never upscaled.
+	assert.equal(fitZoomPct(1600, 1000, 640, 400), 100);
+	// Portrait: height-constrained.
+	const tall = fitZoomPct(1600, 1000, 300, 1200);
+	assert.ok(Math.abs(tall - ((0.88 * 1000) / 1200) * 100) < 1);
+	// Missing dimensions: sane default.
+	assert.equal(fitZoomPct(1600, 1000, undefined, 400), 100);
 });

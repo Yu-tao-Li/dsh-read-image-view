@@ -1,4 +1,4 @@
-# dsh-read-image — DSH bundle patch layer
+# dsh-read-image-view — DSH bundle patch layer
 #
 # Client-only plugin: the server half (lib/index.js) is a no-op. The browser
 # half (lib/client.js, declared via dsh.client in package.json) registers a
@@ -11,5 +11,5 @@
 # scanner (dsh-client-modules) can discover; no host services are needed.
 
 - insert:
-    - id: dsh-read-image
-      name: dsh-read-image
+    - id: dsh-read-image-view
+      name: dsh-read-image-view
