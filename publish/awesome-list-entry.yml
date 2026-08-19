@@ -5,5 +5,5 @@ url: https://github.com/Yu-tao-Li/dsh-read-image-view
 name: Yu-tao-Li/dsh-read-image-view
 category: tools
 description:
-  en: 'Render read_image tool results as real images in the DSH Web GUI conversation flow: a dedicated Read image row with the attached image (lightbox, retry) plus the metadata envelope, and the same image in the Inspect details panel.'
-  zh: 在 DeepSeek Harness Web GUI 对话流中把 read_image 工具结果渲染成真实图片：专用 Read image 行（图片本体可放大、失败可重试）+ 元数据信封，Inspect 详情面板同步显示。
+  en: 'For displaying the images read in the conversation (read_image results) in the DSH Web GUI: a Read image row with a default thumbnail and an in-page full-resolution lightbox (zoom buttons, mouse wheel, 1:1 original size), plus the metadata envelope.'
+  zh: 用于展示对话中读取的图片（read_image 的结果）：在 DeepSeek Harness Web GUI 对话流中以专用 Read image 行呈现，默认缩略图 + 页面内全精度放大层（缩放按钮/滚轮/1:1 原始尺寸）+ 元数据信封。
