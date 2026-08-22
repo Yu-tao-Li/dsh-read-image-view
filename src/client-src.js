@@ -16,7 +16,7 @@ window.__ModuleLoader__.load({
 		 * Row chrome: the same layout and design tokens as the built-in
 		 * ToolRow (height, typography, ioCard, inspect button, running sweep),
 		 * namespaced under `dri-` so the global stylesheet never collides.
-		 * Plus the thumbnail, the expanded frame, and the zoom lightbox.
+		 * Plus the expanded frame and the zoom lightbox.
 		 */
 		const CSS = `.dri-root{flex-direction:column;display:flex}
 .dri-row{position:relative;overflow:hidden}
@@ -40,16 +40,13 @@ window.__ModuleLoader__.load({
 .dri-ioText{white-space:pre-wrap;word-break:break-word;min-width:0;color:var(--dsw-alias-label-secondary)}
 .dri-ioText[data-error]{color:var(--dsw-alias-state-error-primary)}
 .dri-visuallyHidden{clip:rect(0 0 0 0);white-space:nowrap;width:1px;height:1px;position:absolute;overflow:hidden}
-.dri-thumb{flex:none;width:20px;height:20px;margin:2px 8px 2px 0;border:1px solid var(--dsw-alias-border-l1);border-radius:4px;background:var(--dsw-alias-markdown-code-block);cursor:zoom-in;overflow:hidden;padding:0}
-.dri-thumb:hover{border-color:var(--dsw-alias-label-secondary)}
-.dri-thumb img{display:block;width:100%;height:100%;object-fit:cover}
-.dri-frame{cursor:zoom-in;border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-markdown-code-block);margin:4px 0 4px 4px;padding:8px;align-items:center;justify-content:center;display:inline-flex}
+.dri-frame{cursor:zoom-in;border:1px solid var(--dsw-alias-border-l2-darkmode-thin);border-radius:16px;/* PS-style gray/white transparency checkerboard: visible only through the image's transparent pixels. */background-color:#ffffff;background-image:repeating-conic-gradient(#d9d9d9 0% 25%,#ffffff 0% 50%);background-size:16px 16px;align-self:flex-start;flex:none;place-items:center;min-width:44px;min-height:44px;margin:4px 0 4px 4px;padding:0;display:grid;overflow:hidden}
 .dri-frame:hover{border-color:var(--dsw-alias-label-secondary)}
-.dri-frame img{display:block;border-radius:8px;object-fit:cover}
+.dri-frame img{display:block;width:100%;height:100%;object-fit:cover}
 .dri-frameText{color:var(--dsw-alias-label-tertiary);font:var(--dsw-font-xs-13)}
 .dri-lbBackdrop{position:fixed;inset:0;z-index:2147483000;background:var(--dsw-alias-bg-mask-1,rgba(0,0,0,.45));-webkit-backdrop-filter:var(--dsw-mask-blur,blur(2px));backdrop-filter:var(--dsw-mask-blur,blur(2px));display:flex;align-items:center;justify-content:center;overflow:hidden}
 .dri-lbStage{display:flex;align-items:center;justify-content:center;width:100%;height:100%}
-.dri-lbImg{user-select:none;-webkit-user-drag:none}
+.dri-lbImg{user-select:none;-webkit-user-drag:none;/* PS-style gray/white transparency checkerboard: visible only through the image's transparent pixels. */background-color:#ffffff;background-image:repeating-conic-gradient(#d9d9d9 0% 25%,#ffffff 0% 50%);background-size:16px 16px}
 .dri-lbImg[data-pan]{cursor:grab}
 .dri-lbImg[data-pan="dragging"]{cursor:grabbing}
 .dri-lbBar{position:fixed;top:16px;right:16px;z-index:2147483001;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-base);border-radius:999px;align-items:center;display:flex}
@@ -80,7 +77,6 @@ window.__ModuleLoader__.load({
 			ioText: "dri-ioText",
 			inspectButton: "dri-inspectButton",
 			visuallyHidden: "dri-visuallyHidden",
-			thumb: "dri-thumb",
 			frame: "dri-frame",
 			frameText: "dri-frameText",
 			lbBackdrop: "dri-lbBackdrop",
@@ -96,8 +92,8 @@ window.__ModuleLoader__.load({
 		/**
 		 * Object URLs are cached per (session, attachment) for the page
 		 * lifetime: the attachment store is content-addressed, so one id
-		 * backs every result that names it, and every render site (collapsed
-		 * thumbnail, expanded frame, lightbox) re-invokes the loader.
+		 * backs every result that names it, and every render site (the
+		 * expanded frame and the lightbox) re-invokes the loader.
 		 * Failures are not cached. The loader identity is stable per session
 		 * so effects do not churn on parent re-renders.
 		 */
@@ -323,9 +319,9 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 
-		//#region ImageThumb + ImageFrame
+		//#region ImageFrame
 		/**
-		 * One cached attachment URL as component state (thumb + frame share
+		 * One cached attachment URL as component state (the row's frame uses
 		 * it). Resolves through the page-lifetime loader cache.
 		 * @param attachment - validated attachment reference.
 		 * @param load - the session's stable loader.
@@ -351,33 +347,6 @@ window.__ModuleLoader__.load({
 				};
 			}, [attachment, load, attempt]);
 			return { url, failed, retry: () => setAttempt((n) => n + 1) };
-		}
-		/**
-		 * The collapsed-row thumbnail: a 20px square of the image. Clicking
-		 * opens the zoom lightbox (the row toggle is suppressed). Renders
-		 * nothing until the URL resolves.
-		 */
-		function ImageThumb({ attachment, load, labels, onOpen }) {
-			const { url } = useAttachmentUrl(attachment, load);
-			if (url === void 0) return null;
-			return (0, react_jsx_runtime.jsx)("button", {
-				type: "button",
-				className: css.thumb,
-				title: labels.open,
-				"aria-label": labels.openNamed(attachment.name ?? labels.image),
-				onClick: (event) => {
-					event.stopPropagation();
-					onOpen();
-				},
-				onKeyDown: (event) => {
-					if (event.key === "Enter" || event.key === " ") event.stopPropagation();
-				},
-				children: (0, react_jsx_runtime.jsx)("img", {
-					src: url,
-					alt: attachment.name ?? labels.image,
-					"draggable": false
-				})
-			});
 		}
 		/**
 		 * The expanded-row frame: the image at its single-fit size (240px
@@ -407,6 +376,13 @@ window.__ModuleLoader__.load({
 				className: css.frame,
 				title: labels.open,
 				"aria-label": labels.openNamed(attachment.name ?? labels.image),
+				// The frame is sized to the message-image single-fit box and the
+				// img fills it (object-fit: cover), so the card shrink-wraps the
+				// image instead of stretching to the row column width.
+				style: {
+					width: fit.width,
+					height: fit.height
+				},
 				onClick: (event) => {
 					event.stopPropagation();
 					onOpen();
@@ -416,8 +392,6 @@ window.__ModuleLoader__.load({
 					alt: attachment.name ?? labels.image,
 					"draggable": false,
 					style: {
-						width: fit.width,
-						height: fit.height,
 						objectPosition: fit.objectPosition
 					}
 				})
@@ -428,15 +402,16 @@ window.__ModuleLoader__.load({
 		//#region ImageRow
 		/**
 		 * read_image row: icon + Read image · {path} in the shared disclosure
-		 * chrome. The collapsed row carries a 20px thumbnail (click → zoom
-		 * lightbox) beside the path. The path is PLAIN TEXT on purpose:
-		 * opening the file with the OS default app (the host openFile action)
-		 * would pop the system image viewer over the GUI, which users read as
-		 * "the image left the page" — every in-page surface (thumbnail, frame)
-		 * opens the in-page zoom lightbox instead. The expanded body shows
-		 * the image at single-fit size (click → zoom lightbox) above the
-		 * metadata envelope in the Output section. The lightbox zooms via
-		 * control buttons and the mouse wheel, with drag-to-pan when zoomed.
+		 * chrome. A settled image result opens expanded by default so the
+		 * picture shows at the message-image single-fit size (240px long edge)
+		 * without a click — there is no tiny collapsed thumbnail. The path is
+		 * PLAIN TEXT on purpose: opening the file with the OS default app (the
+		 * host openFile action) would pop the system image viewer over the GUI,
+		 * which users read as "the image left the page" — the in-page frame
+		 * opens the in-page zoom lightbox instead. The expanded body shows the
+		 * image at single-fit size (click → zoom lightbox) above the metadata
+		 * envelope in the Output section. The lightbox zooms via control
+		 * buttons and the mouse wheel, with drag-to-pan when zoomed.
 		 * A failed call has no image part: the row surfaces the model-facing
 		 * error text through its Output section and its first line in the
 		 * collapsed summary.
@@ -444,7 +419,10 @@ window.__ModuleLoader__.load({
 		 *   standard kit (sessionId, t).
 		 */
 		function ImageRow({ toolName, block, cwd, inspect, t, sessionId }) {
-			const [expanded, setExpanded] = (0, react.useState)(false);
+			// A settled image result opens expanded by default so the picture shows
+			// at message-image size without a click — no tiny collapsed thumbnail.
+			const imageBody = imageCardModel(block);
+			const [expanded, setExpanded] = (0, react.useState)(imageBody !== null);
 			const [lightboxUrl, setLightboxUrl] = (0, react.useState)(void 0);
 			const done = "kind" in block;
 			const argsRaw = (done ? block.call?.argsRaw : block.argsRaw) ?? "";
@@ -454,7 +432,6 @@ window.__ModuleLoader__.load({
 			const path = isObj ? pickString(parsed, FILE_PATH_KEYS) : void 0;
 			const rawSummary = path ?? (isObj ? Object.values(parsed).find((v) => typeof v === "string" && v !== "") : argsRaw) ?? argsRaw;
 			const summary = firstLine(relativizeToCwd(String(rawSummary), cwd));
-			const imageBody = imageCardModel(block);
 			const output = done ? settledOutputText(block) : null;
 			const errorSummary = state === "error" && output !== null ? firstLine(output) : null;
 			const load = sessionId !== void 0 ? attachmentLoader(sessionId) : null;
@@ -503,16 +480,10 @@ window.__ModuleLoader__.load({
 								className: css.sep,
 								"aria-hidden": true
 							}),
-							imageBody !== null && load !== null && (0, react_jsx_runtime.jsx)(ImageThumb, {
-								attachment: imageBody.attachment,
-								load,
-								labels,
-								onOpen: openLightbox
-							}),
 							// Plain text path (NOT an openFile link): the host
 							// openFile action launches the OS image viewer,
 							// which covers the GUI — in-page viewing belongs to
-							// the thumbnail / frame lightbox.
+							// the frame lightbox.
 							(0, react_jsx_runtime.jsx)("span", {
 								className: failureLine !== null ? `${css.summary} ${css.errorSummary}` : css.summary,
 								children: summaryText
