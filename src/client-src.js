@@ -421,10 +421,12 @@ window.__ModuleLoader__.load({
 		 *   standard kit (sessionId, t).
 		 */
 		function ImageRow({ toolName, block, cwd, inspect, t, sessionId }) {
-			// A settled image result opens expanded by default so the picture shows
-			// at message-image size without a click — no tiny collapsed thumbnail.
+			// read_image rows are expanded by default so the picture shows at
+			// message-image size without a click. The row mounts while the call
+			// is still running (imageBody is null then), so defaulting to true —
+			// not to imageBody !== null — keeps it open once the result settles.
 			const imageBody = imageCardModel(block);
-			const [expanded, setExpanded] = (0, react.useState)(imageBody !== null);
+			const [expanded, setExpanded] = (0, react.useState)(true);
 			const [lightboxUrl, setLightboxUrl] = (0, react.useState)(void 0);
 			const done = "kind" in block;
 			const argsRaw = (done ? block.call?.argsRaw : block.argsRaw) ?? "";
