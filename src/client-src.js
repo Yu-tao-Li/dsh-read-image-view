@@ -16,7 +16,8 @@ window.__ModuleLoader__.load({
 		 * Row chrome: the same layout and design tokens as the built-in
 		 * ToolRow (height, typography, ioCard, inspect button, running sweep),
 		 * namespaced under `dri-` so the global stylesheet never collides.
-		 * Plus the expanded frame and the zoom lightbox.
+		 * Plus the expanded frame, the "read N images" grid, and the zoom
+		 * lightbox.
 		 */
 		const CSS = `.dri-root{flex-direction:column;display:flex}
 .dri-row{position:relative;overflow:hidden}
@@ -44,6 +45,12 @@ window.__ModuleLoader__.load({
 .dri-frame:hover{border-color:var(--dsw-alias-label-secondary)}
 .dri-frame img{display:block;width:100%;height:100%;object-fit:cover}
 .dri-frameText{color:var(--dsw-alias-label-tertiary);font:var(--dsw-font-xs-13)}
+.dri-grid{align-items:flex-start;flex-wrap:wrap;gap:8px;margin:4px 0 4px 4px;display:flex}
+.dri-grid .dri-frame{margin:0}
+.dri-gridTile{cursor:default;border:1px dashed var(--dsw-alias-border-l2);border-radius:16px;align-self:flex-start;align-items:center;flex:none;gap:8px;min-width:120px;max-width:240px;margin:0;padding:10px 14px;display:flex}
+.dri-gridTileText{color:var(--dsw-alias-label-tertiary);text-overflow:ellipsis;white-space:nowrap;font:var(--dsw-font-xs-13);overflow:hidden}
+.dri-gridTile[data-state=error]{border-color:var(--dsw-alias-state-error-primary)}
+.dri-gridTile[data-state=error] .dri-gridTileText{color:var(--dsw-alias-state-error-primary)}
 .dri-lbBackdrop{position:fixed;inset:0;z-index:2147483000;background:var(--dsw-alias-bg-mask-1,rgba(0,0,0,.45));-webkit-backdrop-filter:var(--dsw-mask-blur,blur(2px));backdrop-filter:var(--dsw-mask-blur,blur(2px));display:flex;align-items:center;justify-content:center;overflow:hidden}
 .dri-lbStage{display:flex;align-items:center;justify-content:center;width:100%;height:100%}
 .dri-lbImg{user-select:none;-webkit-user-drag:none;/* PS-style gray/white transparency checkerboard: visible only through the image's transparent pixels. */background-color:#ffffff;background-image:repeating-conic-gradient(#d9d9d9 0% 25%,#ffffff 0% 50%);background-size:16px 16px}
@@ -79,6 +86,9 @@ window.__ModuleLoader__.load({
 			visuallyHidden: "dri-visuallyHidden",
 			frame: "dri-frame",
 			frameText: "dri-frameText",
+			grid: "dri-grid",
+			gridTile: "dri-gridTile",
+			gridTileText: "dri-gridTileText",
 			lbBackdrop: "dri-lbBackdrop",
 			lbStage: "dri-lbStage",
 			lbImg: "dri-lbImg",
@@ -170,6 +180,35 @@ window.__ModuleLoader__.load({
 			}
 			if (parts.length === 0 && block.error !== void 0) parts.push(`${block.error.name}: ${block.error.code}`);
 			return parts.length === 0 ? null : parts.join("\n");
+		}
+		/**
+		 * Reduce a conversation snapshot to the group decisions
+		 * readImageGroup consumes: ordered read markers for the in-window
+		 * read_image results, soft for assistant text/thinking between them,
+		 * break for everything else (user messages, other tools, commands,
+		 * steering, ...). In-flight read_image calls (runningCalls — they
+		 * have no node yet) come back as ordered callIds appended after the
+		 * nodes.
+		 * @param snap - the conversation snapshot (nodes + runningCalls).
+		 * @returns {entries, running} for readImageGroup.
+		 */
+		function groupSnapshot(snap) {
+			const entries = [];
+			for (const n of snap.nodes ?? []) {
+				if (n.kind === "tool-result") {
+					entries.push(n.call?.name === "read_image"
+						? { kind: "read", callId: n.callId }
+						: { kind: "break" });
+				} else if (n.kind === "assistant" || n.kind === "model-retry") {
+					entries.push({ kind: "soft" });
+				} else {
+					entries.push({ kind: "break" });
+				}
+			}
+			const running = (snap.runningCalls ?? [])
+				.filter((c) => c.name === "read_image")
+				.map((c) => c.callId);
+			return { entries, running };
 		}
 		//#endregion
 
@@ -417,17 +456,29 @@ window.__ModuleLoader__.load({
 		 * A failed call has no image part: the row surfaces the model-facing
 		 * error text through its Output section and its first line in the
 		 * collapsed summary.
-		 * @param props - Tool-owned slot owner share plus the session-scoped
-		 *   standard kit (sessionId, t).
+		 *
+		 * CONSECUTIVE-READ GROUPING: when several read_image calls run back to
+		 * back (only assistant text/thinking between them), the FIRST one of
+		 * the run renders the merged row — summary "Read image · 读取了 N 张图片"
+		 * (or the error line when no member has an image) — and the expanded
+		 * body is a wrapping grid of one frame per member image; in-flight
+		 * members show a dashed loading tile. The remaining members render
+		 * null (their lead's grid covers the group). Grouping reads the
+		 * conversation snapshot through the framework's useSession seat, so
+		 * it works purely client-side; a snapshot the row cannot find itself
+		 * in (or a missing useSession) degrades to the solo render above.
+		 * @param props - Tool-owned slot owner share (incl. callId) plus the
+		 *   session-scoped standard kit (sessionId, t, useSession).
 		 */
-		function ImageRow({ toolName, block, cwd, inspect, t, sessionId }) {
+		function ImageRow({ toolName, block, cwd, inspect, t, sessionId, callId, useSession }) {
 			// read_image rows are expanded by default so the picture shows at
 			// message-image size without a click. The row mounts while the call
 			// is still running (imageBody is null then), so defaulting to true —
 			// not to imageBody !== null — keeps it open once the result settles.
 			const imageBody = imageCardModel(block);
 			const [expanded, setExpanded] = (0, react.useState)(true);
-			const [lightboxUrl, setLightboxUrl] = (0, react.useState)(void 0);
+			// { url, attachment } so a group member opens ITS OWN lightbox.
+			const [lightbox, setLightbox] = (0, react.useState)(void 0);
 			const done = "kind" in block;
 			const argsRaw = (done ? block.call?.argsRaw : block.argsRaw) ?? "";
 			const state = !done ? "running" : block.error?.code === "interrupted" ? "stopped" : block.isError ? "error" : "ok";
@@ -440,27 +491,90 @@ window.__ModuleLoader__.load({
 			const errorSummary = state === "error" && output !== null ? firstLine(output) : null;
 			const load = sessionId !== void 0 ? attachmentLoader(sessionId) : null;
 			const labels = imageGalleryLabels(t);
-			const expandable = output !== null || imageBody !== null;
+
+			// ---- consecutive-read grouping ("read N images") ----------------
+			// The framework hands session-scope slots a useSession selector
+			// hook (SessionStandardProps); it is present for this slot for its
+			// whole lifetime, so the conditional call is hook-order stable.
+			// A null snapshot degrades to the solo render below.
+			const snap = typeof useSession === "function" ? useSession((s) => s) : null;
+			const group = (0, react.useMemo)(() => {
+				if (snap === null || callId === void 0) return null;
+				const { entries, running } = groupSnapshot(snap);
+				return readImageGroup(entries, running, callId);
+			}, [snap, callId]);
+			// Per-member view models for the lead row of a multi-read group,
+			// read from the snapshot (the row's own props carry only its own
+			// block). Members absent from the snapshot render as "missing"
+			// and are skipped.
+			const members = (0, react.useMemo)(() => {
+				if (snap === null || group === null || !group.lead || group.members.length < 2) return null;
+				const nodeById = new Map();
+				for (const n of snap.nodes) if (n.kind === "tool-result") nodeById.set(n.callId, n);
+				const runningById = new Map();
+				for (const c of snap.runningCalls ?? []) if (c.name === "read_image") runningById.set(c.callId, c);
+				return group.members.map((cid) => {
+					const node = nodeById.get(cid);
+					const src = node ?? runningById.get(cid) ?? null;
+					if (src === null) return { callId: cid, state: "missing", attachment: null, tileText: null };
+					const settled = node !== null;
+					const mState = !settled ? "running"
+						: node.error?.code === "interrupted" ? "stopped"
+						: node.isError ? "error" : "ok";
+					const attachment = settled ? imageCardModel(node)?.attachment ?? null : null;
+					const text = settled ? settledOutputText(node) : null;
+					const args = parseArgs(src.call?.argsRaw ?? src.argsRaw ?? "");
+					const p = typeof args === "object" && args !== null ? pickString(args, FILE_PATH_KEYS) : void 0;
+					return {
+						callId: cid,
+						state: mState,
+						attachment,
+						tileText: p !== void 0 ? relativizeToCwd(p, cwd) : firstLine(text ?? "") || null
+					};
+				});
+			}, [snap, group, cwd]);
+
+			// A non-lead member renders nothing — the lead row renders the
+			// whole group (its wrapper div collapses to zero height).
+			if (group !== null && group.members.length > 1 && !group.lead) return null;
+
+			const grouped = members !== null;
+			const rowState = grouped
+				? members.some((m) => m.state === "running") ? "running"
+					: members.some((m) => m.state === "error") ? "error"
+					: members.some((m) => m.state === "stopped") ? "stopped" : "ok"
+				: state;
+			const groupErrorLine = grouped
+				? members.find((m) => (m.state === "error" || m.state === "stopped") && m.tileText !== null)?.tileText ?? null
+				: null;
+			const groupLabel = grouped ? readImageGroupLabel(t, members.length) : null;
+			const groupNoImages = grouped && members.every((m) => m.attachment === null);
+			const failureLine = !grouped ? (state === "error" ? errorSummary ?? null : null) : null;
+			const summaryText = grouped
+				? (groupNoImages && groupErrorLine !== null ? `${groupLabel} · ${groupErrorLine}` : groupLabel)
+				: (failureLine ?? summary);
+			const summaryErrorStyle = grouped ? groupNoImages && groupErrorLine !== null : failureLine !== null;
+			const expandable = grouped
+				? members.some((m) => m.attachment !== null || m.state === "error" || m.state === "stopped")
+				: output !== null || imageBody !== null;
 			const open = expanded && expandable;
-			const status = !done ? t("row.running") : state === "error" ? t("row.failed") : state === "stopped" ? t("row.stopped") : null;
-			const failureLine = state === "error" ? errorSummary ?? null : null;
-			const summaryText = failureLine ?? summary;
+			const status = rowState === "running" ? t("row.running") : rowState === "error" ? t("row.failed") : rowState === "stopped" ? t("row.stopped") : null;
 			const toggleExpand = () => {
 				setExpanded((v) => !v);
 			};
-			const openLightbox = () => {
-				if (imageBody === null || load === null) return;
-				load(imageBody.attachment).then(setLightboxUrl).catch(() => {});
+			const openLightboxFor = (attachment) => {
+				if (attachment === null || load === null) return;
+				load(attachment).then((url) => setLightbox({ url, attachment })).catch(() => {});
 			};
 			/** Leading-slot state substitution: the browse icon yields to the
 			 *  terminal state semantic (error = red, interrupted = amber). */
-			const icon = state === "error" ? (0, react_jsx_runtime.jsx)(primitives.StateDot, { state: "error" })
-				: state === "stopped" ? (0, react_jsx_runtime.jsx)(primitives.StateDot, { state: "warning" })
+			const icon = rowState === "error" ? (0, react_jsx_runtime.jsx)(primitives.StateDot, { state: "error" })
+				: rowState === "stopped" ? (0, react_jsx_runtime.jsx)(primitives.StateDot, { state: "warning" })
 				: (0, react_jsx_runtime.jsx)(primitives.IconBrowseOutline16, { size: 14 });
 			return (0, react_jsx_runtime.jsxs)("div", {
 				className: css.root,
 				"data-tool": toolName,
-				"data-state": state,
+				"data-state": rowState,
 				children: [
 					status !== null && (0, react_jsx_runtime.jsx)("span", {
 						className: css.visuallyHidden,
@@ -484,41 +598,72 @@ window.__ModuleLoader__.load({
 								className: css.sep,
 								"aria-hidden": true
 							}),
-							// Plain text path (NOT an openFile link): the host
+							// Plain text (NOT an openFile link): the host
 							// openFile action launches the OS image viewer,
 							// which covers the GUI — in-page viewing belongs to
 							// the frame lightbox.
 							(0, react_jsx_runtime.jsx)("span", {
-								className: failureLine !== null ? `${css.summary} ${css.errorSummary}` : css.summary,
+								className: summaryErrorStyle ? `${css.summary} ${css.errorSummary}` : css.summary,
 								children: summaryText
 							})
 						],
 						children: (0, react_jsx_runtime.jsxs)("div", {
 							className: css.bodyWrap,
 							children: [
-								imageBody !== null && load !== null && (0, react_jsx_runtime.jsx)(ImageFrame, {
-									attachment: imageBody.attachment,
-									load,
-									labels,
-									onOpen: openLightbox
-								}),
-								// The OUT metadata card is redundant once the image is
-								// shown (the image result's text is just its envelope);
-								// keep it only for text-only / error results.
-								output !== null && imageBody === null && (0, react_jsx_runtime.jsxs)("div", {
-									className: css.ioCard,
-									children: [(0, react_jsx_runtime.jsxs)("div", {
-										className: css.ioSection,
-										children: [(0, react_jsx_runtime.jsx)("span", {
-											className: css.ioLabel,
-											children: "OUT"
-										}), (0, react_jsx_runtime.jsx)("span", {
-											className: css.ioText,
-											"data-error": state === "error" || void 0,
-											children: output
-										})]
-									})]
-								}),
+								grouped
+									? (0, react_jsx_runtime.jsx)("div", {
+										className: css.grid,
+										// Group: one frame per member image, side by
+										// side; in-flight / no-image members get a
+										// dashed tile. Clicking a frame opens that
+										// image's lightbox.
+										children: members.map((m) => {
+											if (m.state === "missing") return null;
+											if (m.attachment !== null && load !== null) {
+												return (0, react_jsx_runtime.jsx)(ImageFrame, {
+													attachment: m.attachment,
+													load,
+													labels,
+													onOpen: () => openLightboxFor(m.attachment)
+												}, m.callId);
+											}
+											return (0, react_jsx_runtime.jsx)("div", {
+												className: css.gridTile,
+												"data-state": m.state,
+												children: (0, react_jsx_runtime.jsx)("span", {
+													className: css.gridTileText,
+													children: m.tileText ?? labels.loading
+												})
+											}, m.callId);
+										})
+									})
+									: (0, react_jsx_runtime.jsxs)(react.Fragment, {
+										children: [
+											imageBody !== null && load !== null && (0, react_jsx_runtime.jsx)(ImageFrame, {
+												attachment: imageBody.attachment,
+												load,
+												labels,
+												onOpen: () => openLightboxFor(imageBody.attachment)
+											}),
+											// The OUT metadata card is redundant once the image is
+											// shown (the image result's text is just its envelope);
+											// keep it only for text-only / error results.
+											output !== null && imageBody === null && (0, react_jsx_runtime.jsxs)("div", {
+												className: css.ioCard,
+												children: [(0, react_jsx_runtime.jsxs)("div", {
+													className: css.ioSection,
+													children: [(0, react_jsx_runtime.jsx)("span", {
+														className: css.ioLabel,
+														children: "OUT"
+													}), (0, react_jsx_runtime.jsx)("span", {
+														className: css.ioText,
+														"data-error": state === "error" || void 0,
+														children: output
+													})]
+												})]
+											})
+										]
+									}),
 								inspect !== void 0 && (0, react_jsx_runtime.jsxs)("button", {
 									type: "button",
 									className: css.inspectButton,
@@ -527,13 +672,13 @@ window.__ModuleLoader__.load({
 								})]
 						})
 					}),
-					lightboxUrl !== void 0 && (0, react_jsx_runtime.jsx)(ZoomLightbox, {
-						src: lightboxUrl,
-						alt: imageBody?.attachment?.name ?? labels.image,
+					lightbox !== void 0 && (0, react_jsx_runtime.jsx)(ZoomLightbox, {
+						src: lightbox.url,
+						alt: lightbox.attachment.name ?? labels.image,
 						labels,
-						width: imageBody?.attachment?.width,
-						height: imageBody?.attachment?.height,
-						onClose: () => setLightboxUrl(void 0)
+						width: lightbox.attachment.width,
+						height: lightbox.attachment.height,
+						onClose: () => setLightbox(void 0)
 					})
 				]
 			});

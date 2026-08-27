@@ -17,7 +17,9 @@ import {
 	singleFitSize,
 	clampZoom,
 	clampZoomPct,
-	fitZoomPct
+	fitZoomPct,
+	readImageGroup,
+	readImageGroupLabel
 } from "../lib/read-image-core.mjs";
 
 /** A settled tool result node with one text part and one image part. */
@@ -270,6 +272,95 @@ test("clampZoomPct: clamps to [10, 800] and sanitizes non-finite input", () => {
 	assert.equal(clampZoomPct(1), 10);
 	assert.equal(clampZoomPct(NaN), 100);
 	assert.equal(clampZoomPct(undefined), 100);
+});
+
+const read = (callId) => ({ kind: "read", callId });
+const soft = () => ({ kind: "soft" });
+const brk = () => ({ kind: "break" });
+
+test("readImageGroup: consecutive reads with soft nodes between are one group", () => {
+	const entries = [read("a"), soft(), read("b"), soft(), read("c")];
+	const g = readImageGroup(entries, [], "b");
+	assert.ok(g);
+	assert.equal(g.lead, false);
+	assert.equal(g.position, 1);
+	assert.deepEqual(g.members, ["a", "b", "c"]);
+	// The lead sees the same group.
+	const lead = readImageGroup(entries, [], "a");
+	assert.equal(lead.lead, true);
+	assert.equal(lead.position, 0);
+	assert.deepEqual(lead.members, ["a", "b", "c"]);
+});
+
+test("readImageGroup: a break node splits into two groups", () => {
+	const entries = [read("a"), brk(), read("b"), read("c")];
+	assert.deepEqual(readImageGroup(entries, [], "a").members, ["a"]);
+	assert.equal(readImageGroup(entries, [], "a").lead, true);
+	assert.deepEqual(readImageGroup(entries, [], "b").members, ["b", "c"]);
+	assert.equal(readImageGroup(entries, [], "b").lead, true);
+	assert.equal(readImageGroup(entries, [], "c").lead, false);
+});
+
+test("readImageGroup: other tools and user messages break the group", () => {
+	// read, other-tool(break), read → separate groups.
+	const entries = [read("a"), brk(), read("b")];
+	assert.equal(readImageGroup(entries, [], "a").lead, true);
+	assert.deepEqual(readImageGroup(entries, [], "b").members, ["b"]);
+});
+
+test("readImageGroup: in-flight running reads continue the last settled group", () => {
+	// a settled read then two running reads (no break at tail) → all grouped.
+	const entries = [read("a"), soft()];
+	const g = readImageGroup(entries, ["r1", "r2"], "r1");
+	assert.ok(g);
+	assert.deepEqual(g.members, ["a", "r1", "r2"]);
+	assert.equal(g.lead, false);
+	const lead = readImageGroup(entries, ["r1", "r2"], "a");
+	assert.equal(lead.lead, true);
+	assert.deepEqual(lead.members, ["a", "r1", "r2"]);
+});
+
+test("readImageGroup: running reads after a break open a new group", () => {
+	const entries = [read("a"), brk()];
+	const g = readImageGroup(entries, ["r1"], "r1");
+	assert.ok(g);
+	assert.deepEqual(g.members, ["r1"]);
+	assert.equal(g.lead, true);
+	// The settled 'a' is its own group now.
+	assert.deepEqual(readImageGroup(entries, ["r1"], "a").members, ["a"]);
+});
+
+test("readImageGroup: parallel running reads share one group", () => {
+	const g = readImageGroup([], ["r1", "r2", "r3"], "r2");
+	assert.ok(g);
+	assert.deepEqual(g.members, ["r1", "r2", "r3"]);
+	assert.equal(g.lead, false);
+	assert.equal(g.position, 1);
+});
+
+test("readImageGroup: unknown callId returns null (solo fallback)", () => {
+	assert.equal(readImageGroup([read("a")], [], "zzz"), null);
+	assert.equal(readImageGroup([], [], "zzz"), null);
+});
+
+test("readImageGroup: single read is a 1-member group with lead true", () => {
+	const g = readImageGroup([read("a")], [], "a");
+	assert.ok(g);
+	assert.equal(g.lead, true);
+	assert.equal(g.position, 0);
+	assert.deepEqual(g.members, ["a"]);
+});
+
+test("readImageGroupLabel: zh locale composes 读取了 N 张图片", () => {
+	const tZh = (key) => (key === "image.label" ? "图片" : "<" + key + ">");
+	assert.equal(readImageGroupLabel(tZh, 2), "读取了 2 张图片");
+	assert.equal(readImageGroupLabel(tZh, 1), "读取了 1 张图片");
+});
+
+test("readImageGroupLabel: en locale composes Read N image(s)", () => {
+	const tEn = (key) => (key === "image.label" ? "Image" : "<" + key + ">");
+	assert.equal(readImageGroupLabel(tEn, 2), "Read 2 images");
+	assert.equal(readImageGroupLabel(tEn, 1), "Read 1 image");
 });
 
 test("fitZoomPct: fits the viewport, caps at 100 (no upscale on open)", () => {

@@ -9,6 +9,14 @@
 //
 // The script drives system Edge (channel "msedge") headlessly — no user
 // windows are touched. Element screenshots are written to ./e2e-shots/.
+//
+// UI under test (v0.3.0): settled image rows are EXPANDED by default —
+// no collapsed thumbnail. The expanded frame shows the image at the
+// message-image single-fit size over the PS-style transparency
+// checkerboard; clicking the frame opens the in-page zoom lightbox.
+// Consecutive read_image calls merge into ONE "read N images" row with a
+// wrapping grid of frames (checked softly when the demo session has a
+// consecutive pair).
 import { chromium } from "playwright-core";
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -79,17 +87,23 @@ const fileLinks = await row.locator(".dri-fileLink").count();
 log("fileLink count (expect 0):", fileLinks);
 if (fileLinks !== 0) throw new Error("row still contains an openFile link");
 
-// 1) Collapsed row: the 20px thumbnail must render.
-await row.locator(".dri-thumb img").waitFor({ state: "visible", timeout: 15000 });
-const thumbComplete = await row.locator(".dri-thumb img").evaluate((el) => el.complete && el.naturalWidth > 0);
-log("thumbnail loaded:", thumbComplete);
-if (!thumbComplete) throw new Error("thumbnail image not loaded");
+// 1) Settled image rows are EXPANDED by default: the frame renders without
+//    any click (no collapsed thumbnail in this version).
+const frameImg = row.locator(".dri-frame img");
+await frameImg.waitFor({ state: "visible", timeout: 15000 });
+const frameComplete = await frameImg.evaluate((el) => el.complete && el.naturalWidth > 0);
+log("frame loaded (expanded by default):", frameComplete);
+if (!frameComplete) throw new Error("frame image not loaded");
+// The frame background is the transparency checkerboard.
+const frameBg = await row.locator(".dri-frame").evaluate((el) => getComputedStyle(el).backgroundImage);
+log("frame checkerboard bg:", frameBg);
+if (!frameBg.includes("repeating-conic-gradient")) throw new Error("checkerboard background missing");
 await sleep(300);
-await row.screenshot({ path: `${OUT}/shot-1-collapsed.png` });
-log("shot-1 (collapsed + thumbnail) saved");
+await row.screenshot({ path: `${OUT}/shot-1-expanded.png` });
+log("shot-1 (default-expanded frame) saved");
 
-// 2) Click the thumbnail -> IN-PAGE zoom lightbox; the row stays.
-await row.locator(".dri-thumb").click();
+// 2) Click the frame -> IN-PAGE zoom lightbox; the row stays.
+await row.locator(".dri-frame").click();
 const dialog = page.locator('[role="dialog"]');
 await dialog.waitFor({ state: "visible", timeout: 15000 });
 await dialog.locator("img").waitFor({ state: "visible", timeout: 15000 });
@@ -146,24 +160,28 @@ const imgWidthOne = await dialog.locator("img").evaluate((el) => el.getBoundingC
 log("after 1:1 button:", pctOne, "| width:", imgWidthOne);
 if (pctOne !== "100%" || Math.abs(imgWidthOne - NATIVE_W) > 2) throw new Error("1:1 button did not restore native size");
 
-// 7) Escape closes; row + thumbnail remain.
+// 7) Escape closes; the frame remains (no thumbnail in this version).
 await page.keyboard.press("Escape");
 await sleep(400);
 const dialogGone = (await dialog.count()) === 0 || (await dialog.first().isVisible()) === false;
-const thumbStill = (await row.locator(".dri-thumb img").count()) > 0;
-log("lightbox closed by Esc:", dialogGone, "| thumbnail still present:", thumbStill);
+const frameStill = (await row.locator(".dri-frame img").count()) > 0;
+log("lightbox closed by Esc:", dialogGone, "| frame still present:", frameStill);
 if (!dialogGone) throw new Error("Escape did not close the lightbox");
+if (!frameStill) throw new Error("frame vanished after lightbox close");
 
-// 8) Expand the row (header click) -> the in-page frame renders.
+// 8) Collapse the row (header click) -> the frame hides, the summary shows;
+//    expand again -> the frame returns.
 await row.locator("span", { hasText: "Read image" }).first().click();
 await sleep(500);
-const frameImg = row.locator(".dri-frame img");
+const collapsedFrameCount = await row.locator(".dri-frame img").count();
+log("frame count while collapsed (expect 0):", collapsedFrameCount);
+if (collapsedFrameCount !== 0) throw new Error("frame still visible while collapsed");
+await row.screenshot({ path: `${OUT}/shot-2-collapsed.png` });
+log("shot-2 (collapsed summary) saved");
+await row.locator("span", { hasText: "Read image" }).first().click();
+await sleep(500);
 await frameImg.waitFor({ state: "visible", timeout: 15000 });
-const frameComplete = await frameImg.evaluate((el) => el.complete && el.naturalWidth > 0);
-log("expanded frame loaded:", frameComplete);
-await sleep(300);
-await row.screenshot({ path: `${OUT}/shot-2-expanded.png` });
-log("shot-2 (expanded frame + OUT) saved");
+log("row re-expanded, frame back: true");
 
 // 9) Frame click re-opens the lightbox (repeatable, not one-shot).
 await frameImg.click();
@@ -171,6 +189,25 @@ await dialog.waitFor({ state: "visible", timeout: 15000 });
 log("frame re-opens lightbox: true");
 await page.keyboard.press("Escape");
 await sleep(300);
+
+// 10) CONSECUTIVE-READ GROUP (soft check): when the demo row's summary is a
+//     "read N images" group label, the row must show exactly N frames in the
+//     grid — and the rows of the group's other members must be empty.
+const rowSummary = (await row.locator(".dri-summary").first().textContent().catch(() => "")) ?? "";
+const groupMatch = /读取了\s*(\d+)\s*张图片|Read\s+(\d+)\s+images?/.exec(rowSummary);
+if (groupMatch) {
+	const n = Number(groupMatch[1] ?? groupMatch[2]);
+	const gridFrames = await row.locator(".dri-grid .dri-frame").count();
+	log(`group row: label says ${n}, grid frames: ${gridFrames}`);
+	if (gridFrames < 1) throw new Error("group row has no grid frames");
+	if (gridFrames !== n) throw new Error(`group grid has ${gridFrames} frames, label says ${n}`);
+	// Non-lead members of the group render an empty (zero-height) row: the
+	// visible read_image rows must not duplicate the group's own frames.
+	await row.screenshot({ path: `${OUT}/shot-5-group.png` });
+	log("shot-5 (grouped read-N-images row) saved");
+} else {
+	log("row summary is not a group label — skipping the group check");
+}
 
 log("ALL CHECKS PASSED");
 await browser.close();
