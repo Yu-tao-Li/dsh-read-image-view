@@ -292,7 +292,7 @@ test("readImageGroup: consecutive reads with soft nodes between are one group", 
 	assert.deepEqual(lead.members, ["a", "b", "c"]);
 });
 
-test("readImageGroup: a break node splits into two groups", () => {
+test("readImageGroup: a user-message boundary splits into two groups", () => {
 	const entries = [read("a"), brk(), read("b"), read("c")];
 	assert.deepEqual(readImageGroup(entries, [], "a").members, ["a"]);
 	assert.equal(readImageGroup(entries, [], "a").lead, true);
@@ -301,11 +301,20 @@ test("readImageGroup: a break node splits into two groups", () => {
 	assert.equal(readImageGroup(entries, [], "c").lead, false);
 });
 
-test("readImageGroup: other tools and user messages break the group", () => {
-	// read, other-tool(break), read → separate groups.
-	const entries = [read("a"), brk(), read("b")];
+test("readImageGroup: reads in one user request merge even with other tools / text between", () => {
+	// The grouping rule is "read N images within one user request", NOT
+	// "back-to-back reads": other tool results and assistant text are soft,
+	// only user interactions (break) close the group.
+	// a, other-tool(soft), b, assistant-text(soft), c → one group.
+	const entries = [read("a"), soft(), read("b"), soft(), read("c")];
+	assert.deepEqual(readImageGroup(entries, [], "a").members, ["a", "b", "c"]);
 	assert.equal(readImageGroup(entries, [], "a").lead, true);
-	assert.deepEqual(readImageGroup(entries, [], "b").members, ["b"]);
+	assert.equal(readImageGroup(entries, [], "c").lead, false);
+	// A user message (break) between b and c splits the request.
+	const split = [read("a"), soft(), read("b"), brk(), read("c")];
+	assert.deepEqual(readImageGroup(split, [], "a").members, ["a", "b"]);
+	assert.deepEqual(readImageGroup(split, [], "c").members, ["c"]);
+	assert.equal(readImageGroup(split, [], "c").lead, true);
 });
 
 test("readImageGroup: in-flight running reads continue the last settled group", () => {

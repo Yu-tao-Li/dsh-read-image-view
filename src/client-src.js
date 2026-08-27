@@ -184,11 +184,14 @@ window.__ModuleLoader__.load({
 		/**
 		 * Reduce a conversation snapshot to the group decisions
 		 * readImageGroup consumes: ordered read markers for the in-window
-		 * read_image results, soft for assistant text/thinking between them,
-		 * break for everything else (user messages, other tools, commands,
-		 * steering, ...). In-flight read_image calls (runningCalls — they
-		 * have no node yet) come back as ordered callIds appended after the
-		 * nodes.
+		 * read_image results; OTHER tool results, assistant text/thinking
+		 * and model retries stay soft (a group is "read N images within one
+		 * user request", not "back-to-back reads"); a group closes only on
+		 * a new user interaction / turn boundary — user message, steering,
+		 * command, context injection, turn error, turn max-tokens,
+		 * compaction, or an unknown node. In-flight read_image calls
+		 * (runningCalls — they have no node yet) come back as ordered
+		 * callIds appended after the nodes.
 		 * @param snap - the conversation snapshot (nodes + runningCalls).
 		 * @returns {entries, running} for readImageGroup.
 		 */
@@ -196,13 +199,17 @@ window.__ModuleLoader__.load({
 			const entries = [];
 			for (const n of snap.nodes ?? []) {
 				if (n.kind === "tool-result") {
+					// Other tools do NOT close the group — only user
+					// interactions do ("出现的时候合并展示", not "连续读").
 					entries.push(n.call?.name === "read_image"
 						? { kind: "read", callId: n.callId }
-						: { kind: "break" });
-				} else if (n.kind === "assistant" || n.kind === "model-retry") {
-					entries.push({ kind: "soft" });
-				} else {
+						: { kind: "soft" });
+				} else if (n.kind === "user" || n.kind === "steering" || n.kind === "command"
+					|| n.kind === "context" || n.kind === "turn-error"
+					|| n.kind === "turn-max-tokens" || n.kind === "compaction") {
 					entries.push({ kind: "break" });
+				} else {
+					entries.push({ kind: "soft" });
 				}
 			}
 			const running = (snap.runningCalls ?? [])
@@ -457,16 +464,19 @@ window.__ModuleLoader__.load({
 		 * error text through its Output section and its first line in the
 		 * collapsed summary.
 		 *
-		 * CONSECUTIVE-READ GROUPING: when several read_image calls run back to
-		 * back (only assistant text/thinking between them), the FIRST one of
-		 * the run renders the merged row — summary "Read image · 读取了 N 张图片"
-		 * (or the error line when no member has an image) — and the expanded
-		 * body is a wrapping grid of one frame per member image; in-flight
-		 * members show a dashed loading tile. The remaining members render
-		 * null (their lead's grid covers the group). Grouping reads the
-		 * conversation snapshot through the framework's useSession seat, so
-		 * it works purely client-side; a snapshot the row cannot find itself
-		 * in (or a missing useSession) degrades to the solo render above.
+		 * READ-N-IMAGES GROUPING: every read_image result that appears within
+		 * one user request is merged into ONE row — not only back-to-back
+		 * reads (other tool calls and model text between them do not split
+		 * the group; only a new user message / steering / command / turn
+		 * boundary does). The FIRST read of the request renders the merged
+		 * row — summary "Read image · 读取了 N 张图片" (or the error line when
+		 * no member has an image) — and the expanded body is a wrapping grid
+		 * of one frame per member image; in-flight members show a dashed
+		 * loading tile. The remaining members render null (the lead's grid
+		 * covers the group). Grouping reads the conversation snapshot through
+		 * the framework's useSession seat, so it works purely client-side; a
+		 * snapshot the row cannot find itself in (or a missing useSession)
+		 * degrades to the solo render above.
 		 * @param props - Tool-owned slot owner share (incl. callId) plus the
 		 *   session-scoped standard kit (sessionId, t, useSession).
 		 */
