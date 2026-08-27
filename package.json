@@ -1,7 +1,7 @@
 {
   "name": "dsh-read-image-view",
-  "version": "0.2.1",
-  "description": "Display images read by the read_image tool inside the DeepSeek Harness Web GUI: a dedicated Read image row with a default thumbnail and an in-page full-resolution lightbox (zoom buttons, mouse wheel, 1:1 original size) plus the metadata envelope. 在 Web GUI 对话流中展示 read_image 读到的图片：默认缩略图 + 页面内全精度放大层。",
+  "version": "0.3.0",
+  "description": "Display images read by the read_image tool inside the DeepSeek Harness Web GUI: a dedicated Read image row with a default-expanded message-style image card (PS-style transparency checkerboard), merged read-N-images rows with side-by-side frames for multi-image requests, and an in-page full-resolution lightbox (zoom buttons, mouse wheel, 1:1 original size). 在 Web GUI 对话流中展示 read_image 读到的图片：默认展开的消息图片卡（透明棋盘格）+ 多图合并并排行（读取了 N 张图片）+ 页面内全精度放大层。",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
