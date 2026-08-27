@@ -27,7 +27,8 @@
     "build": "node scripts/build-client.mjs",
     "check": "node scripts/build-client.mjs --check",
     "test": "node --test test/read-image-core.test.mjs",
-    "e2e": "node test/e2e-read-image.mjs"
+    "e2e": "node test/e2e-read-image.mjs",
+    "release": "node scripts/release.mjs"
   },
   "devDependencies": {
     "playwright-core": "^1.52.0"

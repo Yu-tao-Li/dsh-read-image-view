@@ -4,6 +4,26 @@
 （插件市场 [dshmarket](https://github.com/dsh-market/dsh-market) 的数据源）及其 `contributing.md`，
 对照已上架插件（如 dsh-computer-use-win，同属本账号）的仓库结构仿建。
 
+## 常规版本发布（上架后，一条命令）
+
+```powershell
+npm run release 0.3.1 "fix: grid gap on narrow rows"
+# 即 node scripts/release.mjs <version> ["release notes"]
+```
+
+脚本顺序执行并在任一步失败时中止：工作区必须干净（先 commit 功能代码）→
+bundle 同步检查 + 单测门禁 → 改 `package.json` 版本并 commit `release: vX.Y.Z` →
+push main → GitHub API 建 Release（tag vX.Y.Z，版本徽章依赖它）→ `npm publish`。
+GitHub token 取 `$env:DSH_GITHUB_TOKEN` 或 `E:\PythonFiles\.secrets\github-token-computer-use-win.txt`；
+npm 需已登录（`npm whoami`）。
+
+**按需项**（只有变化了才做，先改、先 commit，再跑 release）：
+- UI 变化 → `npm run e2e` 重拍 `assets/screenshot-*.png`（隐私：别把侧边栏/标签栏截进去）；
+- 描述变化 → `package.json` description + `README.md`/`README.en.md` + `publish/awesome-list-entry.yml`；
+- 收录描述变化 → 对 [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) 提目录 PR
+  （更新 `data/plugins/Yu-tao-Li__dsh-read-image-view.yml` 后跑 `node scripts/generate-readme.mjs`；
+  `screenshots.json` 的 URL 指向固定文件名，不用动）。纯 bugfix 版本这三样都不用动。
+
 ## 上架要求（CI 自动检查）
 
 1. `package.json` 声明 `dsh.bundle` manifest（**只有 `dsh.client` 会被拒**）——本仓库已声明（`dsh.bundle.patch` + `dsh.client`）。
