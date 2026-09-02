@@ -22,7 +22,7 @@
 
 `read_image` 工具把读到的图片持久化进 DSH 的**内容寻址附件存储**（`$DSH_HOME/attachments/v1/objects/<sha256>`），`tool/result` 事件里只存一个 `sha256:` 引用 + 元数据（`mediaType`/`width`/`height`/`bytes`/`name`）。Web GUI 之前的工具行渲染把非文本内容块一律 JSON 化展示——用户看到的是一大段附件引用 JSON，而不是图片本身。
 
-本插件补上这一环：从工具结果里提取附件引用，通过网关既有的 `session.attachment` RPC（与运行时 Session 门面同一端点，同源）取回**原始字节**（全程不重压缩），在页面内渲染图片卡、多图网格与可缩放放大层。
+本插件补上这一环：从工具结果里提取附件引用，通过网关既有的 `session/attachment` RPC（与运行时 Session 门面同一端点，同源）取回**原始字节**（全程不重压缩），在页面内渲染图片卡、多图网格与可缩放放大层。
 
 ## 特性
 
@@ -35,7 +35,7 @@
 - **三种缩放操控**——控制条 **− / +** 按钮（×/÷1.25）、**鼠标滚轮**（平滑指数、10%–800% 限位）、**⤢ 适应窗口** 与 **1:1** 按钮；放大超出视口后可**拖拽平移**。
 - **元数据信封按需显示**——纯文本/错误结果仍在 OUT 区显示 `<path>/<type>/<content>`（媒体类型、像素尺寸、字节数）；带图结果的信封是冗余文本，自动隐藏，只留图片。
 - **错误路径不变**——文件不存在 / 模型不支持图片等失败结果没有 image 内容块：单图行按普通错误展示（红点 + 错误文本），合并行里则是紧凑文本格；图片卡加载失败有重试按钮。
-- **安全边界不放宽**——图片字节只经 `session.attachment` 端点获取，该端点按会话授权（引用必须出现在该会话的持久日志中才放行）；插件本身不做任何文件 I/O，不新增网络端点。
+- **安全边界不放宽**——图片字节只经 `session/attachment` 端点获取，该端点按会话授权（引用必须出现在该会话的持久日志中才放行）；插件本身不做任何文件 I/O，不新增网络端点。
 - **优雅让位**——注册 `tool.call.toolview` 键位 `read_image` 时使用 `priority: 100`：若未来 DSH 内置 read_image 渲染（priority 更低），内置行自动胜出，本插件保持注册但不渲染，零冲突。
 
 ## 安装
@@ -63,9 +63,9 @@ DSH Web GUI（浏览器）
   │  │             棋盘格底；点击 → 该图自己的页面内放大层）
   │  ├─ 单图行：Read image · <path 普通文本>（默认展开）+ 一个 ImageFrame
   │  └─ 无图成员/单图错误：紧凑文本格 / OUT 元数据信封
-  │        │  load(attachment) → POST /api/session.attachment
-  │        │  { type:"client-request", method:"session.attachment",
-  │        │    payload:{ sessionId, attachmentId } }
+  │        │  load(attachment) → POST /api/session/attachment
+  │        │  { type:"client-request", method:"session/attachment",
+  │        │    payload:{ args:{ request:{ sessionId, attachmentId } } } }
   │        ▼
   │      网关 → 附件存储（sha256 内容寻址）→ { value:{ attachment, data(base64) } }
   │        │  base64 → Blob URL（原始字节，按 (session, attachment) 页面级缓存）
@@ -81,7 +81,7 @@ shell 内置模块：react / react-dom / dsh-client-ui-primitives（仅借图标
 ## 安全与限制
 
 - **只读渲染**——插件只取图、只渲染，无任何写操作；不新增网络端点。
-- **会话授权**——`session.attachment` 只放行该会话持久日志中引用过的附件；跨会话引用被拒（`attachment-error`）。
+- **会话授权**——`session/attachment` 只放行该会话持久日志中引用过的附件；跨会话引用被拒（`attachment-error`）。
 - **内存**——Blob URL 按 (session, 附件) 缓存于页面生命周期内（附件内容寻址，重复引用只取一次）；页面刷新即释放。大量超大图片场景下可自行刷新页面回收。
 - **仅 Web GUI**——TUI / 其他表面不受影响（工具结果数据本身未变）。
 - 依赖 shell 内置的 `react` / `react-dom` / `dsh-client-ui-primitives` 模块、`image.*` 语言键与 session 标准件（`useSession` 快照钩子）；若上游调整了槽位契约（`tool.call.toolview`）、模块装载表或会话快照结构，需同步适配。

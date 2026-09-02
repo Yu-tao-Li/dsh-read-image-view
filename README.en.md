@@ -22,7 +22,7 @@ A pure client-side plugin (browser-only), zero runtime dependencies, no changes 
 
 The `read_image` tool persists its image into DSH's **content-addressed attachment store** (`$DSH_HOME/attachments/v1/objects/<sha256>`); the `tool/result` event carries only a durable `sha256:` reference plus metadata (`mediaType`/`width`/`height`/`bytes`/`name`). The Web GUI's generic tool row rendering flattened non-text content blocks to JSON — so users saw an attachment-reference JSON blob instead of the picture.
 
-This plugin closes that gap: it extracts the attachment reference from the tool result, fetches the **original bytes** back through the gateway's existing `session.attachment` RPC (the same endpoint the runtime Session facade uses, same-origin, never re-compressed), and renders the image card, the multi-image grid, and the zoomable lightbox in the page.
+This plugin closes that gap: it extracts the attachment reference from the tool result, fetches the **original bytes** back through the gateway's existing `session/attachment` RPC (the same endpoint the runtime Session facade uses, same-origin, never re-compressed), and renders the image card, the multi-image grid, and the zoomable lightbox in the page.
 
 ## Features
 
@@ -35,7 +35,7 @@ This plugin closes that gap: it extracts the attachment reference from the tool 
 - **Three ways to zoom** — **− / +** control-bar buttons (×/÷ 1.25), the **mouse wheel** (smooth exponential, clamped 10%–800%), and the **⤢ fit** / **1:1** buttons; drag pans while the displayed image overflows the stage.
 - **Metadata envelope on demand** — text-only / error results still show the `<path>/<type>/<content>` envelope (media type, pixel size, byte count) in the OUT section; for image results the envelope text is redundant and hidden, leaving just the picture.
 - **Error paths unchanged** — failed calls (missing file, image-incapable model, …) carry no image part: a solo row renders as an ordinary error row (red dot + error text), and a failed group member renders a compact text tile; a failed frame load shows a retry control.
-- **No widened trust boundary** — image bytes only flow through the `session.attachment` endpoint, which authorizes per session (the reference must appear in that session's durable log); the plugin performs no file I/O and adds no network endpoints.
+- **No widened trust boundary** — image bytes only flow through the `session/attachment` endpoint, which authorizes per session (the reference must appear in that session's durable log); the plugin performs no file I/O and adds no network endpoints.
 - **Graceful yielding** — registers the `tool.call.toolview` key `read_image` at `priority: 100`: if a future first-party renderer takes the key at a lower priority, it wins and this plugin stays registered but unrendered, with no conflict.
 
 ## Install
@@ -64,9 +64,9 @@ DSH Web GUI (browser)
   │  │               checkerboard-backed; click → that image's in-page lightbox)
   │  ├─ solo row: Read image · <plain-text path> (default-expanded) + one ImageFrame
   │  └─ imageless members / solo errors: compact text tile / OUT metadata envelope
-  │        │  load(attachment) → POST /api/session.attachment
-  │        │  { type:"client-request", method:"session.attachment",
-  │        │    payload:{ sessionId, attachmentId } }
+  │        │  load(attachment) → POST /api/session/attachment
+  │        │  { type:"client-request", method:"session/attachment",
+  │        │    payload:{ args:{ request:{ sessionId, attachmentId } } } }
   │        ▼
   │      gateway → attachment store (sha256 content-addressed)
   │        → { value:{ attachment, data(base64) } }
@@ -83,7 +83,7 @@ The core logic (`lib/read-image-core.mjs`) is pure: content-part validation, RPC
 ## Security and limitations
 
 - **Read-only rendering** — the plugin only fetches and renders; no writes, no new network endpoints.
-- **Session-authorized** — `session.attachment` serves only attachments referenced in that session's durable log; cross-session references are refused (`attachment-error`).
+- **Session-authorized** — `session/attachment` serves only attachments referenced in that session's durable log; cross-session references are refused (`attachment-error`).
 - **Memory** — Blob URLs are cached per (session, attachment) for the page lifetime (content-addressed, so repeated references fetch once); a page refresh releases them. Refresh to reclaim memory after very many large images.
 - **Web GUI only** — the TUI and other surfaces are unaffected (tool-result data itself is unchanged).
 - Depends on the shell-built-in `react` / `react-dom` / `dsh-client-ui-primitives` modules, the `image.*` locale keys, and the session standard kit (the `useSession` snapshot hook); if upstream changes the `tool.call.toolview` slot contract, the module loader table, or the conversation-snapshot shape, this needs a matching adaptation.

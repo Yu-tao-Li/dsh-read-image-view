@@ -32,21 +32,22 @@
 - 客户端把 `tool/result` 折成 `ToolResultNode`：`{kind:"tool-result", content: <上述 content 原样>, isError, call?, resultView?, …}`。运行中的调用是 `ToolCallBlock`（**没有 `kind` 字段**）——`"kind" in block` 是判断 settled 的惯用法。
 - `read_image` 的结果**没有 render-intent card**（不像 read/diff/terminal 有 `resultView.card`），所以走通用行渲染——这正是本插件键位注册的切入点。
 
-## 2. 取图端点：session.attachment RPC
+## 2. 取图端点：session/attachment RPC
 
 运行时 `Session.readAttachment(attachmentId)` 内部调用：
 
 ```
-POST /api/session.attachment
-{ "type":"client-request", "rpcId":"<uuid>", "method":"session.attachment",
-  "payload": { "sessionId": "…", "attachmentId": "sha256:…" } }
+POST /api/session/attachment
+{ "type":"client-request", "rpcId":"<uuid>", "method":"session/attachment",
+  "payload": { "args": { "request": {
+    "sessionId": "…", "attachmentId": "sha256:…" } } } }
 
 → { "type":"server-response", "rpcId":"…",
     "result": { "ok": true,
                 "value": { "attachment": {…}, "data": "<base64>" } } }
 ```
 
-- 网关侧（`dsh-host-apiproxy`）的 `session.attachment` 实现：先按会话取投影状态，`referencedImage(state.events, attachmentId)` 校验该引用**确实出现在本会话日志里**才读附件——这就是"会话授权"，跨会话引用会被拒（`attachment-error`）。
+- 网关侧的 Typert Remote `session/attachment` 实现先按会话取投影状态，`referencedImage(state.events, attachmentId)` 校验该引用**确实出现在本会话日志里**才读附件——这就是"会话授权"，跨会话引用会被拒（`attachment-error`）。
 - 浏览器同源调用即可（GUI 与网关同端口 3080）。已在 Node 侧实测：返回的 base64 解码后字节数与引用一致，PNG magic 正确。
 
 ## 3. 为什么不复用会话 store 的 loadImage（threading 方案被否）

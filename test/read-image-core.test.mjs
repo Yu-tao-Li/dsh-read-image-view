@@ -1,7 +1,7 @@
 /**
  * dsh-read-image-view core unit tests (Node, zero dependencies).
  *
- * Covers the wire-shape validation of imageCardModel, the session.attachment
+ * Covers the wire-shape validation of imageCardModel, the session/attachment
  * RPC round-trip (dependency-injected fetch, base64 decode, error surfacing),
  * the cache-key shape, and the gallery label resolution.
  *
@@ -118,7 +118,7 @@ test("attachmentCacheKey: joins session and attachment id", () => {
 	assert.equal(attachmentCacheKey("sess-1", "sha256:ab"), "sess-1/sha256:ab");
 });
 
-/** A fetch-shaped fake answering the session.attachment unary call. */
+/** A fetch-shaped fake answering the session/attachment unary call. */
 function fakeFetch(handler) {
 	const calls = [];
 	const fn = async (input, init) => {
@@ -150,13 +150,19 @@ test("fetchAttachmentBytes: ok path decodes base64 and verifies the wire envelop
 	assert.deepEqual([...out], [...bytes]);
 	assert.equal(mediaType, "image/png");
 	// Wire envelope: same-origin path, POST, client-request with the unary method.
-	assert.equal(calls[0].input, "/api/session.attachment");
+	assert.equal(calls[0].input, "/api/session/attachment");
 	assert.equal(calls[0].init.method, "POST");
 	const body = JSON.parse(calls[0].init.body);
 	assert.equal(body.type, "client-request");
-	assert.equal(body.method, "session.attachment");
-	assert.equal(body.payload.sessionId, "sess-1");
-	assert.equal(body.payload.attachmentId, "sha256:ab12cd34");
+	assert.equal(body.method, "session/attachment");
+	assert.deepEqual(body.payload, {
+		args: {
+			request: {
+				sessionId: "sess-1",
+				attachmentId: "sha256:ab12cd34"
+			}
+		}
+	});
 	assert.ok(typeof body.rpcId === "string" && body.rpcId.length > 0);
 });
 

@@ -115,6 +115,6 @@ dsh plugin --profile web add github:Yu-tao-Li/dsh-read-image-view
 ## 安全提醒
 
 - 上架 ≠ 安全审查（列表官方免责声明）。本插件**只读渲染**：仅经会话授权的
-  `session.attachment` RPC 取图，无文件 I/O、无新端点、无写操作。
+  `session/attachment` RPC 取图，无文件 I/O、无新端点、无写操作。
 - GitHub token 只存在 `E:\PythonFiles\.secrets\` 与 git 凭据管理器，
   **不在仓库内**（`.gitignore` 已排除 `.secrets/`）。
