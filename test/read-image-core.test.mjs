@@ -12,6 +12,7 @@ import assert from "node:assert/strict";
 import {
 	imageCardModel,
 	attachmentCacheKey,
+	randomUuid,
 	fetchAttachmentBytes,
 	imageGalleryLabels,
 	singleFitSize,
@@ -45,6 +46,36 @@ const VALID_ATTACHMENT = {
 	height: 320,
 	name: "x.png"
 };
+
+function withGlobalCrypto(value, fn) {
+	const descriptor = Object.getOwnPropertyDescriptor(globalThis, "crypto");
+	Object.defineProperty(globalThis, "crypto", { configurable: true, value });
+	try {
+		return fn();
+	} finally {
+		Object.defineProperty(globalThis, "crypto", descriptor);
+	}
+}
+
+test("randomUuid: prefers randomUUID when available", () => {
+	const id = withGlobalCrypto({ randomUUID: () => "native-id" }, () => randomUuid());
+	assert.equal(id, "native-id");
+});
+
+test("randomUuid: uses getRandomValues on insecure-compatible runtimes", () => {
+	const id = withGlobalCrypto({
+		getRandomValues(bytes) {
+			bytes.fill(0);
+			return bytes;
+		}
+	}, () => randomUuid());
+	assert.equal(id, "00000000-0000-4000-8000-000000000000");
+});
+
+test("randomUuid: retains a valid UUID shape without Web Crypto", () => {
+	const id = withGlobalCrypto(undefined, () => randomUuid());
+	assert.match(id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+});
 
 const ENVELOPE = "<path>x.png</path>\n<type>image</type>\n<content>\nimage/png image, 480x320 px, 3721 bytes\n</content>";
 

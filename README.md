@@ -104,7 +104,7 @@ docs/dev-notes.md         设计决策、调试记录
 ```powershell
 npm run build    # 重新生成 lib/client.js
 npm run check    # 校验 bundle 与 src/+core 同步
-npm test         # node --test（29 例）
+npm test         # node --test（32 例）
 npm run e2e      # 需要运行中的 dsh web + playwright-core（devDependency）+ 系统 Edge
 ```
 
