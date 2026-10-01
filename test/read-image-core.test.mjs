@@ -91,6 +91,17 @@ test("imageCardModel: settled node with a valid image part", () => {
 	assert.equal(card.text, ENVELOPE);
 });
 
+test("imageCardModel: accepts the DSH 0.2 root ToolResultNode shape", () => {
+	const node = settledNode([
+		{ type: "text", text: ENVELOPE },
+		{ type: "image", attachment: { ...VALID_ATTACHMENT, originalDimensions: { width: 480, height: 320 } } }
+	], {
+		meta: { path: "C:\\workspace\\x.png" },
+		parentCallId: undefined
+	});
+	assert.equal(imageCardModel(node)?.attachment.attachmentId, VALID_ATTACHMENT.attachmentId);
+});
+
 test("imageCardModel: running call (no kind) is null", () => {
 	const running = {
 		callId: "call-1",
@@ -136,13 +147,13 @@ test("imageCardModel: text envelope joins text parts; empty text is undefined", 
 	assert.equal(noText.text, undefined);
 });
 
-test("imageCardModel: first valid image part wins over later text-only parts", () => {
+test("imageCardModel: malformed image members decline the whole card", () => {
 	const card = imageCardModel(settledNode([
 		{ type: "text", text: ENVELOPE },
 		{ type: "image", attachment: { ...VALID_ATTACHMENT } },
 		{ type: "image", attachment: { attachmentId: "sha256:other", mediaType: "image/gif" } }
 	]));
-	assert.equal(card.attachment.attachmentId, "sha256:ab12cd34");
+	assert.equal(card, null);
 });
 
 test("attachmentCacheKey: joins session and attachment id", () => {

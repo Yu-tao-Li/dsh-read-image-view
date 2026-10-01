@@ -5,7 +5,7 @@
 //
 // What it does (in order, aborting on the first failure):
 //   1. verify the working tree is clean (commit your feature work first)
-//   2. gate: bundle sync check (build-client.mjs --check) + unit tests
+//   2. gate: bundle sync check (build-client.mjs --check) + all unit tests
 //   3. bump package.json version and commit "release: vX.Y.Z"
 //   4. push to origin main
 //   5. create the GitHub release (tag vX.Y.Z) via the API
@@ -50,7 +50,7 @@ if (dirty) fail(`working tree is not clean — commit or stash first:\n${dirty}`
 console.log("[release] gate: bundle sync check");
 run("node", ["scripts/build-client.mjs", "--check"]);
 console.log("[release] gate: unit tests");
-run("node", ["--test", "test/read-image-core.test.mjs"]);
+run("npm", ["test"]);
 
 // --- 3. bump + commit ---------------------------------------------------------
 const pkgPath = join(root, "package.json");

@@ -1,7 +1,7 @@
 {
   "name": "dsh-read-image-view",
-  "version": "0.3.2",
-  "description": "Display images read by the read_image tool inside the DeepSeek Harness Web GUI: a dedicated Read image row with a default-expanded message-style image card (PS-style transparency checkerboard), merged read-N-images rows with side-by-side frames for multi-image requests, and an in-page full-resolution lightbox (zoom buttons, mouse wheel, 1:1 original size). 在 Web GUI 对话流中展示 read_image 读到的图片：默认展开的消息图片卡（透明棋盘格）+ 多图合并并排行（读取了 N 张图片）+ 页面内全精度放大层。",
+  "version": "0.3.3",
+  "description": "Display images read by the read_image tool inside the DeepSeek Harness Web GUI: a DSH 0.2-compatible dedicated Read image row with a default-expanded message-style image card (PS-style transparency checkerboard) and an in-page full-resolution lightbox. 在 Web GUI 对话流中展示 read_image 读到的图片：兼容 DSH 0.2 的默认展开图片卡（透明棋盘格）+ 页面内全精度放大层。",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -26,7 +26,7 @@
   "scripts": {
     "build": "node scripts/build-client.mjs",
     "check": "node scripts/build-client.mjs --check",
-    "test": "node --test test/read-image-core.test.mjs",
+    "test": "node --test test/*.test.mjs",
     "e2e": "node test/e2e-read-image.mjs",
     "release": "node scripts/release.mjs"
   },
@@ -63,7 +63,8 @@
     },
     "client": {
       "inject": [
-        "@deepseek-ai/dsh-client-runtime"
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-tool"
       ],
       "platform": "web"
     }

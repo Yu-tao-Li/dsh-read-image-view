@@ -32,32 +32,16 @@
 - 客户端把 `tool/result` 折成 `ToolResultNode`：`{kind:"tool-result", content: <上述 content 原样>, isError, call?, resultView?, …}`。运行中的调用是 `ToolCallBlock`（**没有 `kind` 字段**）——`"kind" in block` 是判断 settled 的惯用法。
 - `read_image` 的结果**没有 render-intent card**（不像 read/diff/terminal 有 `resultView.card`），所以走通用行渲染——这正是本插件键位注册的切入点。
 
-## 2. 取图端点：session/attachment RPC
+## 2. 取图：宿主提供的会话授权 loader
 
-运行时 `Session.readAttachment(attachmentId)` 内部调用：
+DSH 0.2 的 `tool.call.toolview` owner 直接提供 `loadImage(attachment)`。插件只把经过 `imageCardModel` 校验的附件引用交给它，得到宿主管理的 Blob URL；插件不自行拼接 RPC、读取文件或绕过会话授权。
 
-```
-POST /api/session/attachment
-{ "type":"client-request", "rpcId":"<uuid>", "method":"session/attachment",
-  "payload": { "args": { "request": {
-    "sessionId": "…", "attachmentId": "sha256:…" } } } }
+- loader 的授权、缓存和 URL 生命周期属于宿主；插件只处理加载成功、失败和重试的呈现。
+- `lib/read-image-core.mjs` 仍保留旧 carrier 的 RPC envelope 校验，作为兼容测试面；0.2 Web GUI 的真实路径使用 `loadImage`。
 
-→ { "type":"server-response", "rpcId":"…",
-    "result": { "ok": true,
-                "value": { "attachment": {…}, "data": "<base64>" } } }
-```
+## 3. 为什么使用 `useChat` legacy 投影
 
-- 网关侧的 Typert Remote `session/attachment` 实现先按会话取投影状态，`referencedImage(state.events, attachmentId)` 校验该引用**确实出现在本会话日志里**才读附件——这就是"会话授权"，跨会话引用会被拒（`attachment-error`）。
-- 浏览器同源调用即可（GUI 与网关同端口 3080）。已在 Node 侧实测：返回的 base64 解码后字节数与引用一致，PNG magic 正确。
-
-## 3. 为什么不复用会话 store 的 loadImage（threading 方案被否）
-
-会话 store 有 `resolveImage(sessionId, attachment)`（带 URL 缓存 + 代际失效），但它是 **conversation 模块内部**的：
-
-- `loadImage` 只在 `conversation.chat.node` 的 owner 里出现，而 `ToolCallTree → ToolCall → tool.call.toolview owner` 这条链**不透传**它；
-- 详情面板 `conversation.details.tool` 的 owner 更精简（只有 `block`/`cwd`）。
-
-透传需要改 conversation / ui-tool 两个官方模块的组件签名——等于把特性焊死在 DSH 内部结构上。插件路线改为**自持 fetch**：同端点、同协议，Blob URL 按 (session, attachment) 页面级缓存（附件内容寻址 ⇒ 重复引用只取一次；失败不缓存）。代价是与会话 store 的 URL 缓存不共享（同一张图若同时出现在消息附件和工具结果里会各取一次）——可接受，且插件与 DSH 内部解耦。
+`useSession` 在 0.2 只提供生命周期状态，不包含会话节点。`useChat` 是 `SessionStandardProps` 的聊天投影 hook，其中 `s.legacy` 保留了 `nodes` 和 `runningCalls`，正好用于把同一用户请求中的多个 `read_image` 结果合并。插件优先读取这个投影，并对旧版仍保留 `useSession` 形状的安全退化。
 
 ## 4. 槽位契约（tool.call.toolview）
 
@@ -65,8 +49,8 @@ POST /api/session/attachment
 - 每个工具调用经 `renderSlot("tool.call.toolview", owner, {entryKey: toolName, fallback: GenericToolCard})` 分发：keyed 命中 → 渲染注册组件；未命中 → 通用卡片。
 - 注册方式（与内置行完全一致）：
   `ctx.slots.inject("tool.call.toolview", () => ctx.slots.register({name, key, locale:"conversation", priority}, ImageRow))`
-- keyed 槽位同 key 同 priority 重复注册会**抛错**；不同 priority 是**影子机制**（"lowest renders"）。本插件用 `priority: 100`：未来若 DSH 内置 read_image 行（priority 0），内置自动胜出。
-- 组件收到的 props = 标准 kit（session 槽：`sessionId`、`useSessions`、`useSession`…；`t` 来自 `locale: "conversation"`）+ owner（`callId`、`toolName`、`block`、`openFile`、`cwd`、`inspect`）。**fallback 分支（GenericToolCard）拿不到 kit**——所以自建行必须从 kit 取 sessionId。
+- keyed 槽位同 key 同 priority 重复注册会**抛错**；不同 priority 是**影子机制**（lowest renders）。本插件用 `priority: -1` 覆盖 DSH 0.2 内置的 `priority: 0` 行。
+- 组件收到的 props = 标准 kit（session 槽：`useChat`、`useSession`、`sessionId`…；`t` 来自 `locale: "conversation"`）+ owner（`callId`、`toolName`、`block`、`loadImage`、`cwd`、`inspect`）。
 
 ## 5. 客户端模块装载链（本插件能"热生效"的原因）
 
@@ -81,11 +65,12 @@ POST /api/session/attachment
 
 ## 7. 测试
 
-- `test/read-image-core.test.mjs`（13 例，`node --test`）：imageCardModel 全部形状校验、RPC 信封（路径/方法/rpcId/payload/base64 解码）、HTTP 与业务错误、标签键。
-- 浏览器侧（行渲染、lightbox）无单测——靠 CI bundle-sync + 真机 GUI 验证（README 截图即验证产物）。
+- `npm test`：35 例通过，覆盖 imageCardModel、RPC 兼容 helper、缩放/适配、分组边界、DSH 0.2 manifest 和 bundle contract。
+- `npm run check`：确认 `lib/client.js` 与源文件同步。
+- `test/e2e-read-image.mjs`：在隔离 DSH 0.2 Web profile 中回放官方 Session/JSONL fixture，使用真实 `loadImage`，验证合并行、成功/失败成员、lightbox、滚轮缩放、Esc、折叠重开；Edge 桌面和 390x844 移动视口均通过且无浏览器错误。
 
 ## 8. 调试记录（2026-08-18）
 
 - 会话日志 zstd 压缩（`session.jsonl.zstd`），`D:\anaconda3\Library\bin\zstd.exe -d` 可解；`read_image` 的 tool/call + tool/result 在 s17 等会话里可复核。
-- 点击行摘要会触发 `openFile`（路径是 file link）——验证"展开"要点**标题区**而非路径。
+- 路径摘要可能包含宿主提供的 file link；验证"展开"时点击**标题区**，避免把路径点击误判为行交互。
 - 行展开后图片 240px 长边（`MessageImage` single 变体，宽高比钳制 [0.25,4]，`object-fit: cover` 裁切）——宽幅截图会按 240 高/宽显示，属官方行为。
