@@ -36,7 +36,10 @@ window.mountFixture=(references,options={})=>{
  const block={kind:'tool-result',callId:'fixture-read',call:{name:'read_image',argsRaw:'{"file_path":"fixture.png"}'},content:references.map(attachment=>({type:'image',attachment})),isError:false};
  const props={phase:'result',toolName:'read_image',block,callId:'fixture-read',cwd:'/fixture',inspect:()=>{},t,loadImage:window.fixtureLoad};
  if(options.useChat)props.useChat=()=>options.useChat;
- root.render(h(window.ImageRow,{key:options.key??'row',...props}));
+ // Scene changes must commit before Playwright queries the next scene. React
+ // otherwise schedules render after evaluate returns and a strict locator can
+ // still see the preceding gallery. Image loading remains asynchronous.
+ ReactDOM.flushSync(()=>root.render(h(window.ImageRow,{key:options.key??'row',...props})));
 };
-window.unmountFixture=()=>root.render(null);
+window.unmountFixture=()=>ReactDOM.flushSync(()=>root.render(null));
 window.resolveLoads=()=>{window.delayIds.clear();for(const resolve of window.deferred.splice(0))resolve();};
