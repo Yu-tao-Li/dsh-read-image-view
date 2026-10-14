@@ -4,6 +4,12 @@ node_modules/
 # local runtime artifacts
 *.log
 *.tmp
+.file-log.lock
+.file-log.tmp-*
+**/FILE_LOG.md
+**/FILE_INDEX.json
+**/FILE_HISTORY.jsonl
+test/e2e-shots/
 .DS_Store
 Thumbs.db
 

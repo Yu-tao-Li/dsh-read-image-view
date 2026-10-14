@@ -71,6 +71,14 @@ DSH 0.2 的 `tool.call.toolview` owner 直接提供 `loadImage(attachment)`。�
 
 ## 8. 调试记录（2026-08-18）
 
-- 会话日志 zstd 压缩（`session.jsonl.zstd`），`D:\anaconda3\Library\bin\zstd.exe -d` 可解；`read_image` 的 tool/call + tool/result 在 s17 等会话里可复核。
+- 会话日志使用 zstd 压缩（`session.jsonl.zstd`），可通过匹配的 zstd 工具解码后核对 tool/call 与 tool/result。
 - 路径摘要可能包含宿主提供的 file link；验证"展开"时点击**标题区**，避免把路径点击误判为行交互。
 - 行展开后图片 240px 长边（`MessageImage` single 变体，宽高比钳制 [0.25,4]，`object-fit: cover` 裁切）——宽幅截图会按 240 高/宽显示，属官方行为。
+
+## 9. 0.4.0 更新（2026-10-15）
+
+上述第 7、8 节保留历史验证背景。0.4.0 改用 contain 完整预览、多附件画廊、键盘焦点管理和触控缩放；单测及契约测试为 39 项，CI 另跑真实 Chromium 回归。
+
+实际 DSH Desktop 0.11.1 / Harness 0.2.0-rc.2 的 Windows 11 虚拟机验证使用宿主附件存储、持久化会话和原版渲染器，没有模型调用。桌面插件使用独立 generation 登记；外部 CLI 重装可能被桌面投影覆盖，升级应走应用内插件管理。本轮最终候选通过原装桌面安装器登记后再冷启动验证。
+
+宿主拒绝 12000px 源图；600×8000 源图归一化为 561×7476 WEBP。100% 对应返回位图与 CSS 像素，源图尺寸单独标注。参考 [设计资料](upgrade-references.md) 和 README 的实测边界。

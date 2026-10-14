@@ -11,6 +11,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
 	imageCardModel,
+	imageAttachments,
+	boundedPan,
+	anchoredZoom,
 	attachmentCacheKey,
 	randomUuid,
 	fetchAttachmentBytes,
@@ -277,7 +280,7 @@ test("singleFitSize: 240px long edge, never upscaled", () => {
 	assert.equal(tall.height, 240);
 });
 
-test("singleFitSize: extreme ratios clamp to [0.25, 4] with anchored crops", () => {
+test("singleFitSize: extreme ratios clamp the frame to [0.25, 4]", () => {
 	const veryTall = singleFitSize(40, 400);
 	assert.equal(veryTall.objectPosition, "center top");
 	// Clamped base is 60x240, but the natural 40px width is never upscaled.
@@ -312,14 +315,40 @@ test("clampZoom: clamps to [0.2, 8] and sanitizes non-finite input", () => {
 	assert.ok(z >= 0.2);
 });
 
-test("clampZoomPct: clamps to [10, 800] and sanitizes non-finite input", () => {
+test("clampZoomPct: permits tiny fit scales and clamps to [0.1, 800]", () => {
 	assert.equal(clampZoomPct(100), 100);
 	assert.equal(clampZoomPct(800), 800);
 	assert.equal(clampZoomPct(9000), 800);
 	assert.equal(clampZoomPct(10), 10);
-	assert.equal(clampZoomPct(1), 10);
+	assert.equal(clampZoomPct(1), 1);
+	assert.equal(clampZoomPct(-1), 0.1);
 	assert.equal(clampZoomPct(NaN), 100);
 	assert.equal(clampZoomPct(undefined), 100);
+});
+
+test("imageAttachments: preserves every valid image and the legacy first-card API", () => {
+	const first={...VALID_ATTACHMENT}, second={...VALID_ATTACHMENT,attachmentId:'sha256:second'};
+	const node=settledNode([{type:'image',attachment:first},{type:'image',attachment:second}]);
+	assert.deepEqual(imageAttachments(node),[first,second]);
+	assert.equal(imageCardModel(node).attachment,first);
+	assert.equal(imageAttachments(settledNode([{type:'image',attachment:first},{type:'image',attachment:{}}])),null);
+});
+
+test("fitZoomPct: a 12000px screenshot fits a mobile viewport below 10 percent", () => {
+	const pct=fitZoomPct(390,844,600,12000);
+	assert.ok(pct<10&&pct>0);
+	assert.ok(12000*pct/100<=844*0.88+0.001);
+	assert.ok(600*pct/100<=390*0.92+0.001);
+});
+
+test("boundedPan: centers fitted images and keeps oversized edges reachable", () => {
+	assert.deepEqual(boundedPan(500,-500,200,100,1000,750),{x:0,y:0});
+	assert.deepEqual(boundedPan(10000,-10000,2000,1500,1000,750),{x:540,y:-420});
+	assert.deepEqual(boundedPan(NaN,Infinity,2000,1500,1000,750),{x:0,y:0});
+});
+
+test("anchoredZoom: retains the image point under the zoom focal point", () => {
+	assert.deepEqual(anchoredZoom({x:20,y:30},100,200,100,150),{x:-60,y:-90});
 });
 
 const read = (callId) => ({ kind: "read", callId });
