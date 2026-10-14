@@ -1,7 +1,7 @@
 {
   "name": "dsh-read-image-view",
-  "version": "0.3.3",
-  "description": "Display images read by the read_image tool inside the DeepSeek Harness Web GUI: a DSH 0.2-compatible dedicated Read image row with a default-expanded message-style image card (PS-style transparency checkerboard) and an in-page full-resolution lightbox. 在 Web GUI 对话流中展示 read_image 读到的图片：兼容 DSH 0.2 的默认展开图片卡（透明棋盘格）+ 页面内全精度放大层。",
+  "version": "0.4.0",
+  "description": "Display DSH read_image results as complete inline previews and a keyboard/touch image gallery, with native-resolution zoom and session-authorized loading. 在 DSH 对话中完整预览图片，支持多图切换、键盘与触控缩放。",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -21,17 +21,23 @@
     "README.md",
     "README.en.md",
     "LICENSE",
-    "PUBLISH.md"
+    "PUBLISH.md",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "node scripts/build-client.mjs",
     "check": "node scripts/build-client.mjs --check",
     "test": "node --test test/*.test.mjs",
     "e2e": "node test/e2e-read-image.mjs",
+    "test:browser": "node test/browser-regression.mjs",
     "release": "node scripts/release.mjs"
   },
   "devDependencies": {
-    "playwright-core": "^1.52.0"
+    "playwright-core": "1.64.1",
+    "esbuild": "0.25.10",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "pngjs": "7.0.0"
   },
   "keywords": [
     "deepseek-harness",

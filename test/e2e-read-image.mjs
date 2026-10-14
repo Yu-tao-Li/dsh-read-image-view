@@ -76,12 +76,17 @@ try {
 		}
 	}
 	const row = page.locator('[data-tool="read_image"]').nth(visibleRowIndex);
-	await row.evaluate((element) => {
-		for (let parent = element.parentElement; parent !== null; parent = parent.parentElement) {
-			if (parent.hidden === "until-found") parent.hidden = false;
-			if (getComputedStyle(parent).contentVisibility === "hidden") parent.style.contentVisibility = "visible";
+	const hiddenGroups = await row.evaluate((element) => {
+		const ids = [];
+		for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+			if (parent.hidden && parent.id) ids.push(parent.id);
 		}
+		return ids.reverse();
 	});
+	for (const id of hiddenGroups) {
+		const control = page.locator('[aria-controls=' + JSON.stringify(id) + ']');
+		if (await control.getAttribute('aria-expanded') === 'false') await control.click();
+	}
 	await row.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest" }));
 	await sleep(700);
 	await row.waitFor({ state: "visible", timeout: 30000 });

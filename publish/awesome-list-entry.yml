@@ -1,9 +1,7 @@
-# 收录条目 —— 提交到 awesome-dsh-plugin 仓库时，放到：
-#   data/plugins/Yu-tao-Li__dsh-read-image-view.yml
-# 注意：英文描述含 ": "（冒号+空格），按规则必须加引号。
 url: https://github.com/Yu-tao-Li/dsh-read-image-view
 name: Yu-tao-Li/dsh-read-image-view
 category: ui
 description:
-  en: 'For displaying read_image results in the DSH Web GUI: a DSH 0.2-compatible Read image row with a default-expanded message-style card over a PS-style transparency checkerboard, merged read-N-images rows within one user request, and an in-page full-resolution lightbox (zoom buttons, mouse wheel, 1:1 original size).'
-  zh: 用于在 DeepSeek Harness Web GUI 展示 read_image 结果：兼容 DSH 0.2 的专用 Read image 行，默认展开消息图片卡（透明棋盘格）+ 同一次请求的多图合并行 + 页面内全精度放大层（缩放按钮/滚轮/1:1 原始尺寸）。
+  en: 'Display read_image results in DSH Web and Desktop: complete previews, grouped multi-image galleries, transparency checkerboards, keyboard and touch zoom, and session-authorized loading. Verified with DSH Desktop 0.11.1 / Harness 0.2.0-rc.2.'
+  zh: '在 DSH Web 和桌面版展示 read_image 结果：完整预览、多图画廊、透明棋盘格、键盘与触控缩放，使用会话授权加载。已验证 DSH Desktop 0.11.1 / Harness 0.2.0-rc.2。'
+tarball: https://github.com/Yu-tao-Li/dsh-read-image-view/releases/download/v0.4.0/dsh-read-image-view-0.4.0.tgz

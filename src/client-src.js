@@ -43,7 +43,8 @@ window.__ModuleLoader__.load({
 .dri-visuallyHidden{clip:rect(0 0 0 0);white-space:nowrap;width:1px;height:1px;position:absolute;overflow:hidden}
 .dri-frame{cursor:zoom-in;border:1px solid var(--dsw-alias-border-l2-darkmode-thin);border-radius:16px;/* PS-style gray/white transparency checkerboard: visible only through the image's transparent pixels. */background-color:#ffffff;background-image:repeating-conic-gradient(#d9d9d9 0% 25%,#ffffff 0% 50%);background-size:16px 16px;align-self:flex-start;flex:none;place-items:center;min-width:44px;min-height:44px;margin:4px 0 4px 4px;padding:0;display:grid;overflow:hidden}
 .dri-frame:hover{border-color:var(--dsw-alias-label-secondary)}
-.dri-frame img{display:block;width:100%;height:100%;object-fit:cover}
+.dri-frame img{display:block;width:100%;height:100%;min-width:0;min-height:0;object-fit:contain}
+.dri-frame{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr)}
 .dri-frameText{color:var(--dsw-alias-label-tertiary);font:var(--dsw-font-xs-13)}
 .dri-grid{align-items:flex-start;flex-wrap:wrap;gap:8px;margin:4px 0 4px 4px;display:flex}
 .dri-grid .dri-frame{margin:0}
@@ -51,9 +52,17 @@ window.__ModuleLoader__.load({
 .dri-gridTileText{color:var(--dsw-alias-label-tertiary);text-overflow:ellipsis;white-space:nowrap;font:var(--dsw-font-xs-13);overflow:hidden}
 .dri-gridTile[data-state=error]{border-color:var(--dsw-alias-state-error-primary)}
 .dri-gridTile[data-state=error] .dri-gridTileText{color:var(--dsw-alias-state-error-primary)}
-.dri-lbBackdrop{position:fixed;inset:0;z-index:2147483000;background:var(--dsw-alias-bg-mask-1,rgba(0,0,0,.45));-webkit-backdrop-filter:var(--dsw-mask-blur,blur(2px));backdrop-filter:var(--dsw-mask-blur,blur(2px));display:flex;align-items:center;justify-content:center;overflow:hidden}
+.dri-lbBackdrop{border:0;margin:0;padding:0;width:100vw;height:100dvh;max-width:none;max-height:none;position:fixed;inset:0;z-index:2147483000;background:var(--dsw-alias-bg-mask-1,rgba(0,0,0,.45));-webkit-backdrop-filter:var(--dsw-mask-blur,blur(2px));backdrop-filter:var(--dsw-mask-blur,blur(2px));display:flex;align-items:center;justify-content:center;overflow:hidden}
+.dri-lbBackdrop:not([open]){display:none}
+.dri-lbBackdrop::backdrop{background:transparent}
+.dri-lbMessage{padding:20px;color:var(--dsw-alias-label-primary,#222);background:var(--dsw-alias-bg-base,#fff);border-radius:12px}
+.dri-lbCaption{position:fixed;bottom:16px;left:16px;right:16px;text-align:center;color:var(--dsw-alias-label-primary,#fff);font-size:13px;pointer-events:none}
+.dri-lbCounter{padding:0 8px;color:var(--dsw-alias-label-secondary,#222);white-space:nowrap}
+.dri-lbBtn:disabled{opacity:.35;cursor:default}
+.dri-lbBtn:focus-visible,.dri-frame:focus-visible{outline:2px solid #4589ff;outline-offset:2px}
+@media(max-width:600px){.dri-lbBar{left:8px;right:8px;top:8px;flex-wrap:wrap;justify-content:center;border-radius:14px}.dri-lbBtn{min-height:40px;min-width:36px}.dri-lbCaption{bottom:12px}}
 .dri-lbStage{display:flex;align-items:center;justify-content:center;width:100%;height:100%}
-.dri-lbImg{user-select:none;-webkit-user-drag:none;/* PS-style gray/white transparency checkerboard: visible only through the image's transparent pixels. */background-color:#ffffff;background-image:repeating-conic-gradient(#d9d9d9 0% 25%,#ffffff 0% 50%);background-size:16px 16px}
+.dri-lbImg{flex-shrink:0;max-width:none;max-height:none;cursor:grab;user-select:none;-webkit-user-drag:none;/* PS-style gray/white transparency checkerboard: visible only through the image's transparent pixels. */background-color:#ffffff;background-image:repeating-conic-gradient(#d9d9d9 0% 25%,#ffffff 0% 50%);background-size:16px 16px}
 .dri-lbImg[data-pan]{cursor:grab}
 .dri-lbImg[data-pan="dragging"]{cursor:grabbing}
 .dri-lbBar{position:fixed;top:16px;right:16px;z-index:2147483001;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-base);border-radius:999px;align-items:center;display:flex}
@@ -94,7 +103,7 @@ window.__ModuleLoader__.load({
 			lbImg: "dri-lbImg",
 			lbBar: "dri-lbBar",
 			lbBtn: "dri-lbBtn",
-			lbPct: "dri-lbPct"
+			lbPct: "dri-lbPct", lbCounter:"dri-lbCounter", lbCaption:"dri-lbCaption", lbMessage:"dri-lbMessage"
 		};
 		//#endregion
 
@@ -188,228 +197,162 @@ window.__ModuleLoader__.load({
 
 		//#region ZoomLightbox
 		/**
-		 * Document-level original-image preview with FULL-RESOLUTION zoom.
-		 * Closes on Escape, backdrop click, or the close control; rendered
-		 * through a body portal (a transformed ancestor would trap the fixed
-		 * backdrop).
-		 *
-		 * Fidelity: the preview renders the original attachment bytes sized in
-		 * real pixels — 100% means 1:1 original pixels (NOT fit-to-viewport).
-		 * The img element carries explicit pixel width/height (native × scale)
-		 * instead of a transform scale, so at ≥100% the browser re-rasterizes
-		 * the original bitmap at that scale (crisp; no transform-upsample
-		 * blur) and below 100% it is a high-quality downsample. The preview
-		 * opens fitted to the viewport, capped at 100% (never upscaled on
-		 * open). Zoom controls: − / + buttons (×/÷ 1.25), the mouse wheel
-		 * (smooth exponential, clamped 10%–800%), and ⤢ fit-to-window.
-		 * Drag pans while the displayed image overflows the stage. The
-		 * backdrop uses the design-system mask + blur tokens (the official
-		 * modal look — in dark themes the blur is what sells the modal).
-		 * @param props - { src, alt, labels, width, height, onClose }
+		 * Gallery of session-authorized bitmaps. 100% maps one bitmap pixel to
+		 * one CSS pixel; the host may normalize the source before returning it.
+		 * Zoom beyond 100% interpolates the returned bitmap. Native dialog plus
+		 * explicit boundary cycling contains focus and restores the opener.
+		 * @param props - { gallery, initialIndex, load, labels, onClose }
 		 */
-		function ZoomLightbox({ src, alt, labels, width, height, onClose }) {
-			const [pct, setPct] = (0, react.useState)(null);
-			const [pan, setPan] = (0, react.useState)({ x: 0, y: 0 });
-			const [nat, setNat] = (0, react.useState)({ w: width, h: height });
-			const imgRef = (0, react.useRef)(null);
-			const backdropRef = (0, react.useRef)(null);
-			const dragState = (0, react.useRef)(null);
-			// Initial fit (capped at 100%); runs again if the natural size was
-			// unknown at open and arrives via the img load event.
-			(0, react.useEffect)(() => {
-				if (nat.w > 0 && nat.h > 0 && pct === null) setPct(fitZoomPct(window.innerWidth, window.innerHeight, nat.w, nat.h));
-			}, [nat, pct]);
-			const onLoaded = (event) => {
-				const img = event.currentTarget;
-				if (img.naturalWidth > 0 && (nat.w <= 0 || nat.h <= 0)) {
-					setNat({ w: img.naturalWidth, h: img.naturalHeight });
-				}
-			};
-			// Wheel: non-passive so preventDefault stops the page behind from
-			// scrolling; exponential factor for a smooth feel, clamped.
-			(0, react.useEffect)(() => {
-				const el = backdropRef.current;
-				if (el === null) return;
-				const onWheel = (event) => {
-					event.preventDefault();
-					const factor = Math.exp(-event.deltaY * 0.0022);
-					setPct((p) => clampZoomPct((p ?? 100) * factor));
-				};
-				el.addEventListener("wheel", onWheel, { passive: false });
-				return () => el.removeEventListener("wheel", onWheel);
-			}, []);
-			// Escape closes.
-			(0, react.useEffect)(() => {
-				const onKey = (event) => {
-					if (event.key === "Escape") onClose();
-				};
-				document.addEventListener("keydown", onKey);
-				return () => document.removeEventListener("keydown", onKey);
-			}, [onClose]);
-			const scale = (pct ?? 100) / 100;
-			const dispW = nat.w > 0 ? nat.w * scale : 0;
-			const dispH = nat.h > 0 ? nat.h * scale : 0;
-			const overflows = dispW > 0.92 * window.innerWidth || dispH > 0.88 * window.innerHeight;
-			// Drag-to-pan while the displayed image overflows the stage.
-			const onPointerDown = (event) => {
-				if (!overflows) return;
-				if (event.button !== 0) return;
-				event.preventDefault();
-				dragState.current = { sx: event.clientX, sy: event.clientY, px: pan.x, py: pan.y };
-				if (imgRef.current !== null) imgRef.current.dataset.pan = "dragging";
-				const onMove = (move) => {
-					if (dragState.current === null) return;
-					setPan({
-						x: dragState.current.px + (move.clientX - dragState.current.sx),
-						y: dragState.current.py + (move.clientY - dragState.current.sy)
-					});
-				};
-				const onUp = () => {
-					dragState.current = null;
-					if (imgRef.current !== null) delete imgRef.current.dataset.pan;
-					window.removeEventListener("pointermove", onMove);
-					window.removeEventListener("pointerup", onUp);
-				};
-				window.addEventListener("pointermove", onMove);
-				window.addEventListener("pointerup", onUp);
-			};
-			const fit = () => {
-				setPan({ x: 0, y: 0 });
-				if (nat.w > 0 && nat.h > 0) setPct(fitZoomPct(window.innerWidth, window.innerHeight, nat.w, nat.h));
-			};
-			const btn = (label, title, onClick) => (0, react_jsx_runtime.jsx)("button", {
-				type: "button",
-				className: css.lbBtn,
-				title,
-				"aria-label": title,
-				onClick,
-				children: label
-			});
-			return (0, react_dom.createPortal)(
-				(0, react_jsx_runtime.jsxs)("div", {
-					ref: backdropRef,
-					className: css.lbBackdrop,
-					role: "dialog",
-					"aria-modal": "true",
-					"aria-label": labels.lightbox.dialog,
-					onMouseDown: (event) => {
-						// The stage covers the whole backdrop, so "empty area"
-						// means "not the image or a control".
-						if (!event.target.closest("img, button")) onClose();
-					},
-					children: [
-						(0, react_jsx_runtime.jsx)("div", {
-							className: css.lbStage,
-							children: (0, react_jsx_runtime.jsx)("img", {
-								ref: imgRef,
-								src,
-								alt,
-								className: css.lbImg,
-								"draggable": false,
-								onLoad: onLoaded,
-								"data-pan": overflows || void 0,
-								// Real pixel sizing: at ≥100% the browser renders the
-								// original bitmap at native scale (full resolution).
-								style: nat.w > 0 ? { width: dispW, height: dispH, transform: `translate(${pan.x}px, ${pan.y}px)` } : { maxWidth: "92vw", maxHeight: "88vh" },
-								onPointerDown: onPointerDown
-							})
-						}),
-						(0, react_jsx_runtime.jsxs)("div", {
-							className: css.lbBar,
-							children: [
-								btn("−", "Zoom out", () => setPct((p) => clampZoomPct((p ?? 100) / 1.25))),
-								(0, react_jsx_runtime.jsx)("span", { className: css.lbPct, children: pct === null ? "…" : `${Math.round(pct)}%` }),
-								btn("+", "Zoom in", () => setPct((p) => clampZoomPct((p ?? 100) * 1.25))),
-								btn("⤢", "Fit to window", fit),
-								btn("1:1", "Original size (100%)", () => { setPan({ x: 0, y: 0 }); setPct(100); }),
-								btn("✕", labels.lightbox.close, onClose)
-							]
-						})
-					]
-				}),
-				document.body
-			);
+		function ZoomLightbox({ gallery, initialIndex, load, labels, onClose }) {
+		 const [index, setIndex] = react.useState(initialIndex);
+		 const attachment = gallery[index];
+		 const {url, failed, retry, markFailed} = useAttachmentUrl(attachment, load);
+		 const [viewport, setViewport] = react.useState({w:window.innerWidth,h:window.innerHeight});
+		 const [natural, setNatural] = react.useState({w:attachment.width,h:attachment.height});
+		 const [view, setView] = react.useState({pct:fitZoomPct(window.innerWidth,window.innerHeight,attachment.width,attachment.height),pan:{x:0,y:0},fit:true});
+		 const dialogRef = react.useRef(null);
+		 const viewRef = react.useRef(view);viewRef.current=view;
+		 const pointers = react.useRef(new Map());
+		 const gesture = react.useRef(null);
+		 const h = react.createElement;
+		 const zh = String(labels.image).includes('图');
+		 const sourceSize=attachment.originalDimensions;
+		 const names = zh?{prev:'上一张',next:'下一张',out:'缩小',in:'放大',fit:'适应窗口',original:'原始尺寸（100%）',retry:'重试'}:{prev:'Previous image',next:'Next image',out:'Zoom out',in:'Zoom in',fit:'Fit to window',original:'Original size (100%)',retry:'Retry'};
+		 const fit = () => setView({pct:fitZoomPct(viewport.w,viewport.h,natural.w,natural.h),pan:{x:0,y:0},fit:true});
+		 const zoom = (pct,x=0,y=0) => setView(previous => {
+		  const next = clampZoomPct(pct);
+		  const pan = anchoredZoom(previous.pan,previous.pct,next,x,y);
+		  return {pct:next,fit:false,pan:boundedPan(pan.x,pan.y,natural.w*next/100,natural.h*next/100,viewport.w,viewport.h)};
+		 });
+		 const move = delta => { pointers.current.clear();gesture.current=null;setIndex(value=>Math.max(0,Math.min(gallery.length-1,value+delta))); };
+		 react.useEffect(()=>{
+		  const dialog=dialogRef.current,opener=document.activeElement,overflow=document.body.style.overflow;
+		  document.body.style.overflow='hidden';dialog.showModal();
+		  return ()=>{pointers.current.clear();gesture.current=null;dialog.close();document.body.style.overflow=overflow;if(opener?.isConnected)opener.focus();};
+		 },[]);
+		 react.useEffect(()=>{
+		  const onResize=()=>setViewport({w:window.innerWidth,h:window.innerHeight});
+		  window.addEventListener('resize',onResize);return ()=>window.removeEventListener('resize',onResize);
+		 },[]);
+		 react.useEffect(()=>{
+		  setNatural({w:attachment.width,h:attachment.height});
+		  setView({pct:fitZoomPct(viewport.w,viewport.h,attachment.width,attachment.height),pan:{x:0,y:0},fit:true});
+		 },[attachment]);
+		 react.useEffect(()=>{
+		  setView(previous=>{
+		   const pct=previous.fit?fitZoomPct(viewport.w,viewport.h,natural.w,natural.h):previous.pct;
+		   return {...previous,pct,pan:boundedPan(previous.pan.x,previous.pan.y,natural.w*pct/100,natural.h*pct/100,viewport.w,viewport.h)};
+		  });
+		 },[viewport,natural]);
+		 react.useEffect(()=>{
+		  const element=dialogRef.current;
+		  const onWheel=event=>{if(event.target.closest('button'))return;event.preventDefault();zoom(viewRef.current.pct*Math.exp(-event.deltaY*0.0022),event.clientX-window.innerWidth/2,event.clientY-window.innerHeight/2);};
+		  element.addEventListener('wheel',onWheel,{passive:false});return ()=>element.removeEventListener('wheel',onWheel);
+		 },[viewport,natural]);
+		 const resetGesture=()=>{
+		  const points=[...pointers.current.values()];
+		  if(points.length>=2){const [a,b]=points;gesture.current={kind:'pinch',distance:Math.hypot(a.x-b.x,a.y-b.y),center:{x:(a.x+b.x)/2,y:(a.y+b.y)/2},view:viewRef.current};}
+		  else if(points.length===1)gesture.current={kind:'pan',point:points[0],view:viewRef.current};
+		  else gesture.current=null;
+		 };
+		 const onPointerDown=event=>{
+		  if(event.pointerType==='mouse'&&event.button!==0)return;
+		  event.preventDefault();event.currentTarget.setPointerCapture(event.pointerId);
+		  pointers.current.set(event.pointerId,{x:event.clientX,y:event.clientY});resetGesture();
+		 };
+		 const onPointerMove=event=>{
+		  if(!pointers.current.has(event.pointerId)||!gesture.current)return;
+		  pointers.current.set(event.pointerId,{x:event.clientX,y:event.clientY});
+		  const active=gesture.current,points=[...pointers.current.values()];let pct=active.view.pct,pan;
+		  if(active.kind==='pinch'&&points.length>=2){
+		   const [a,b]=points,center={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
+		   pct=clampZoomPct(active.view.pct*Math.hypot(a.x-b.x,a.y-b.y)/Math.max(1,active.distance));
+		   pan=anchoredZoom(active.view.pan,active.view.pct,pct,active.center.x-viewport.w/2,active.center.y-viewport.h/2);
+		   pan={x:pan.x+center.x-active.center.x,y:pan.y+center.y-active.center.y};
+		  }else{const point=points[0];pan={x:active.view.pan.x+point.x-active.point.x,y:active.view.pan.y+point.y-active.point.y};}
+		  setView({pct,fit:false,pan:boundedPan(pan.x,pan.y,natural.w*pct/100,natural.h*pct/100,viewport.w,viewport.h)});
+		 };
+		 const endPointer=event=>{
+		  pointers.current.delete(event.pointerId);
+		  if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);
+		  resetGesture();
+		 };
+		 const button=(text,title,onClick,disabled=false)=>h('button',{type:'button',className:css.lbBtn,title,'aria-label':title,onClick,disabled},text);
+		 const onKeyDown=event=>{
+		  if(event.key==='Tab'){
+		   const buttons=[...event.currentTarget.querySelectorAll('button:not([disabled])')].filter(button=>button.getClientRects().length>0);
+		   const first=buttons[0],last=buttons.at(-1);
+		   if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}
+		   else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}
+		   return;
+		  }
+		  if(event.ctrlKey||event.metaKey||event.altKey)return;
+		  if(['ArrowLeft','ArrowRight','+','=','-','0','f','F'].includes(event.key)){event.preventDefault();event.stopPropagation();}
+		  if(event.key==='ArrowLeft')move(-1);else if(event.key==='ArrowRight')move(1);
+		  else if(event.key==='+'||event.key==='=')zoom(view.pct*1.25);else if(event.key==='-')zoom(view.pct/1.25);
+		  else if(event.key==='0')setView({pct:100,pan:{x:0,y:0},fit:false});else if(event.key==='f'||event.key==='F')fit();
+		 };
+		 const onLoad=event=>{const image=event.currentTarget;if(image.naturalWidth>0)setNatural({w:image.naturalWidth,h:image.naturalHeight});};
+		 return react_dom.createPortal(h('dialog',{ref:dialogRef,className:css.lbBackdrop,role:'dialog','aria-label':labels.lightbox.dialog,'aria-modal':true,onKeyDown,onCancel:event=>{event.preventDefault();onClose();},onClick:event=>{if(!event.target.closest('img,button'))onClose();}},
+		  h('div',{className:css.lbStage},url?h('img',{src:url,alt:attachment.name??labels.image,className:css.lbImg,draggable:false,onLoad,onError:markFailed,
+		   style:{width:natural.w*view.pct/100,height:natural.h*view.pct/100,transform:`translate(${view.pan.x}px, ${view.pan.y}px)`,touchAction:'none'},
+		   onPointerDown,onPointerMove,onPointerUp:endPointer,onPointerCancel:endPointer,onLostPointerCapture:endPointer,
+		   onDoubleClick:event=>zoom(view.pct<99?100:fitZoomPct(viewport.w,viewport.h,natural.w,natural.h),event.clientX-viewport.w/2,event.clientY-viewport.h/2)
+		  }):h('div',{role:'status',className:css.lbMessage},failed?h('button',{type:'button',onClick:retry},labels.loadFailed):labels.loading)),
+		  h('div',{className:css.lbBar},gallery.length>1&&button('‹',names.prev,()=>move(-1),index===0),
+		   h('span',{className:css.lbCounter,'aria-live':'polite'},`${index+1} / ${gallery.length}`),gallery.length>1&&button('›',names.next,()=>move(1),index===gallery.length-1),
+		   button('−',names.out,()=>zoom(view.pct/1.25)),h('span',{className:css.lbPct},`${view.pct<10?view.pct.toFixed(1):Math.round(view.pct)}%`),button('+',names.in,()=>zoom(view.pct*1.25)),
+		   button('⤢',names.fit,fit),button('1:1',names.original,()=>setView({pct:100,pan:{x:0,y:0},fit:false})),button('✕',labels.lightbox.close,onClose)),
+		  h('div',{className:css.lbCaption},attachment.name??labels.image,` · ${natural.w} × ${natural.h}`,sourceSize&&(sourceSize.width!==natural.w||sourceSize.height!==natural.h)?` · ${zh?'源图':'Source'} ${sourceSize.width} × ${sourceSize.height}`:'')
+		 ),document.body);
 		}
+
 		//#endregion
 
 		//#region ImageFrame
 		/**
-		 * One cached attachment URL as component state (the row's frame uses
-		 * it). Resolves through the page-lifetime loader cache.
+		 * Resolve through the host loader, which owns authorization, caching
+		 * and URL lifetime. Ignore completions belonging to stale view state.
 		 * @param attachment - validated attachment reference.
 		 * @param load - the session's stable loader.
 		 * @returns {url, failed, retry} for the render sites.
 		 */
-		function useAttachmentUrl(attachment, load) {
-			const [url, setUrl] = (0, react.useState)(void 0);
-			const [failed, setFailed] = (0, react.useState)(false);
-			const [attempt, setAttempt] = (0, react.useState)(0);
-			(0, react.useEffect)(() => {
-				let live = true;
-				setUrl(void 0);
-				setFailed(false);
-				load(attachment)
-					.then((u) => {
-						if (live) setUrl(u);
-					})
-					.catch(() => {
-						if (live) setFailed(true);
-					});
-				return () => {
-					live = false;
-				};
-			}, [attachment, load, attempt]);
-			return { url, failed, retry: () => setAttempt((n) => n + 1) };
-		}
+		function useAttachmentUrl(attachment, load, active=true) {
+   const [state,setState]=react.useState({attachment:null,load:null,url:undefined,failed:false});
+   const [attempt,setAttempt]=react.useState(0);
+   react.useEffect(()=>{
+    let live=true;
+    setState({attachment,load,url:undefined,failed:false});
+    if(active)load(attachment).then(url=>{if(live)setState({attachment,load,url,failed:false});}).catch(()=>{if(live)setState({attachment,load,url:undefined,failed:true});});
+    return ()=>{live=false;};
+   },[attachment,load,attempt,active]);
+   const current=state.attachment===attachment&&state.load===load;
+   return {url:current?state.url:undefined,failed:current&&state.failed,retry:()=>setAttempt(n=>n+1),markFailed:()=>setState({attachment,load,url:undefined,failed:true})};
+  }
+  function useNearViewport() {
+   const ref=react.useRef(null);
+   const [active,setActive]=react.useState(typeof IntersectionObserver==='undefined');
+   react.useEffect(()=>{
+    if(active||!ref.current)return;
+    const observer=new IntersectionObserver(entries=>{if(entries.some(entry=>entry.isIntersecting)){setActive(true);observer.disconnect();}},{rootMargin:'400px'});
+    observer.observe(ref.current);return ()=>observer.disconnect();
+   },[active]);
+   return {ref,active};
+  }
+  function ImageFrame({attachment,load,labels,onOpen}) {
+   const {ref,active}=useNearViewport();
+   const {url,failed,retry,markFailed}=useAttachmentUrl(attachment,load,active);
+   const fit=singleFitSize(attachment.width,attachment.height);
+   return react.createElement('button',{ref,type:'button',className:css.frame,title:failed?labels.loadFailed:labels.open,'aria-label':failed?labels.loadFailed:labels.openNamed(attachment.name??labels.image),style:{width:fit.width,height:fit.height},onClick:event=>{event.stopPropagation();if(failed)retry();else onOpen();}},
+    url?react.createElement('img',{src:url,alt:attachment.name??labels.image,draggable:false,onError:markFailed,style:{objectFit:'contain',objectPosition:'center'},decoding:'async'}):react.createElement('span',{className:css.frameText,role:'status'},failed?labels.loadFailed:labels.loading));
+  }
 		/**
 		 * The expanded-row frame: the image at its single-fit size (240px
 		 * long edge, ratio-clamped, never upscaled). Clicking opens the zoom
 		 * lightbox. While the URL loads it shows the locale loading hint; a
 		 * failed load shows the retry control.
 		 */
-		function ImageFrame({ attachment, load, labels, onOpen }) {
-			const { url, failed, retry } = useAttachmentUrl(attachment, load);
-			if (failed) {
-				return (0, react_jsx_runtime.jsx)("button", {
-					type: "button",
-					className: css.frameText,
-					onClick: retry,
-					children: labels.loadFailed
-				});
-			}
-			if (url === void 0) {
-				return (0, react_jsx_runtime.jsx)("span", {
-					className: css.frameText,
-					children: labels.loading
-				});
-			}
-			const fit = singleFitSize(attachment.width, attachment.height);
-			return (0, react_jsx_runtime.jsx)("button", {
-				type: "button",
-				className: css.frame,
-				title: labels.open,
-				"aria-label": labels.openNamed(attachment.name ?? labels.image),
-				// The frame is sized to the message-image single-fit box and the
-				// img fills it (object-fit: cover), so the card shrink-wraps the
-				// image instead of stretching to the row column width.
-				style: {
-					width: fit.width,
-					height: fit.height
-				},
-				onClick: (event) => {
-					event.stopPropagation();
-					onOpen();
-				},
-				children: (0, react_jsx_runtime.jsx)("img", {
-					src: url,
-					alt: attachment.name ?? labels.image,
-					"draggable": false,
-					style: {
-						objectPosition: fit.objectPosition
-					}
-				})
-			});
-		}
+
 		//#endregion
 
 		//#region ImageRow
@@ -451,8 +394,9 @@ window.__ModuleLoader__.load({
 			// is still running (imageBody is null then), so defaulting to true —
 			// not to imageBody !== null — keeps it open once the result settles.
 			const imageBody = phase === "result" ? imageCardModel(block) : null;
+   const imageParts = phase === "result" ? imageAttachments(block) ?? [] : [];
 			const [expanded, setExpanded] = (0, react.useState)(true);
-			// { url, attachment } so a group member opens ITS OWN lightbox.
+			// Snapshot the gallery and selected index when opening a member.
 			const [lightbox, setLightbox] = (0, react.useState)(void 0);
 			const done = phase === "result";
 			const argsRaw = (done ? block.call?.argsRaw : block.argsRaw) ?? "";
@@ -492,25 +436,28 @@ window.__ModuleLoader__.load({
 					const mState = !settled ? "running"
 						: node.error?.code === "interrupted" ? "stopped"
 						: node.isError ? "error" : "ok";
-					const attachment = settled ? imageCardModel(node)?.attachment ?? null : null;
+					const attachments = settled ? imageAttachments(node) ?? [] : [];
+     const attachment = attachments[0] ?? null;
 					const text = settled ? settledOutputText(node) : null;
 					const args = parseArgs(src.call?.argsRaw ?? src.argsRaw ?? "");
 					const p = typeof args === "object" && args !== null ? pickString(args, FILE_PATH_KEYS) : void 0;
-					return { callId: cid, state: mState, attachment, tileText: p !== void 0 ? relativizeToCwd(p, cwd) : firstLine(text ?? "") || null };
+					return { callId: cid, state: mState, attachment, attachments, tileText: p !== void 0 ? relativizeToCwd(p, cwd) : firstLine(text ?? "") || null };
 				});
 			}, [snap, group, cwd]);
 			if (group !== null && group.members.length > 1 && !group.lead) return null;
 			const grouped = members !== null;
+   const gallery = grouped ? members.flatMap(member=>member.attachments??[]) : imageParts;
 			const rowState = grouped
 				? members.some((m) => m.state === "running") ? "running"
 					: members.some((m) => m.state === "error") ? "error"
 					: members.some((m) => m.state === "stopped") ? "stopped" : "ok"
 				: state;
 			const groupErrorLine = grouped ? members.find((m) => (m.state === "error" || m.state === "stopped") && m.tileText !== null)?.tileText ?? null : null;
-			const groupLabel = grouped ? readImageGroupLabel(t, members.length) : null;
+			const count=gallery.length || (grouped ? members.length : 0);
+   const groupLabel = grouped || gallery.length>1 ? readImageGroupLabel(t, count) : null;
 			const groupNoImages = grouped && members.every((m) => m.attachment === null);
 			const failureLine = !grouped ? (state === "error" ? errorSummary ?? null : null) : null;
-			const summaryText = grouped ? (groupNoImages && groupErrorLine !== null ? `${groupLabel} · ${groupErrorLine}` : groupLabel) : (failureLine ?? summary);
+			const summaryText = grouped ? (groupNoImages && groupErrorLine !== null ? `${groupLabel} · ${groupErrorLine}` : groupLabel) : (groupLabel ?? failureLine ?? summary);
 			const summaryErrorStyle = grouped ? groupNoImages && groupErrorLine !== null : failureLine !== null;
 			const expandable = grouped ? members.some((m) => m.attachment !== null || m.state === "error" || m.state === "stopped") : output !== null || imageBody !== null;
 			const open = expanded && expandable;
@@ -518,10 +465,11 @@ window.__ModuleLoader__.load({
 			const toggleExpand = () => {
 				setExpanded((v) => !v);
 			};
-			const openLightboxFor = (attachment) => {
-				if (attachment === null || load === null) return;
-				load(attachment).then((url) => setLightbox({ url, attachment })).catch(() => {});
-			};
+   const openLightboxFor = attachment => {
+    if(attachment===null||load===null)return;
+    const index=gallery.indexOf(attachment);
+    if(index>=0)setLightbox({gallery:[...gallery],index});
+   };
 			/** Leading-slot state substitution: the browse icon yields to the
 			 *  terminal state semantic (error = red, interrupted = amber). */
 			const icon = rowState === "error" ? (0, react_jsx_runtime.jsx)(primitives.StateDot, { state: "error" })
@@ -571,14 +519,7 @@ window.__ModuleLoader__.load({
 										className: css.grid,
 										children: members.map((m) => {
 											if (m.state === "missing") return null;
-											if (m.attachment !== null && load !== null) {
-												return (0, react_jsx_runtime.jsx)(ImageFrame, {
-													attachment: m.attachment,
-													load,
-													labels,
-													onOpen: () => openLightboxFor(m.attachment)
-												}, m.callId);
-											}
+           if(m.attachment!==null&&load!==null)return (m.attachments??[m.attachment]).map((attachment,index)=>react.createElement(ImageFrame,{attachment,load,labels,onOpen:()=>openLightboxFor(attachment),key:m.callId+':'+index}));
 											return (0, react_jsx_runtime.jsx)("div", {
 												className: css.gridTile,
 												"data-state": m.state,
@@ -591,12 +532,7 @@ window.__ModuleLoader__.load({
 									})
 									: (0, react_jsx_runtime.jsxs)(react.Fragment, {
 										children: [
-											imageBody !== null && load !== null && (0, react_jsx_runtime.jsx)(ImageFrame, {
-												attachment: imageBody.attachment,
-												load,
-												labels,
-												onOpen: () => openLightboxFor(imageBody.attachment)
-											}),
+           load!==null&&imageParts.map((attachment,index)=>react.createElement(ImageFrame,{attachment,load,labels,onOpen:()=>openLightboxFor(attachment),key:index})),
 											output !== null && imageBody === null && (0, react_jsx_runtime.jsxs)("div", {
 												className: css.ioCard,
 												children: [(0, react_jsx_runtime.jsxs)("div", {
@@ -621,14 +557,7 @@ window.__ModuleLoader__.load({
 								})]
 						})
 					}),
-					lightbox !== void 0 && (0, react_jsx_runtime.jsx)(ZoomLightbox, {
-						src: lightbox.url,
-						alt: lightbox.attachment.name ?? labels.image,
-						labels,
-						width: lightbox.attachment.width,
-						height: lightbox.attachment.height,
-						onClose: () => setLightbox(void 0)
-					})
+     lightbox!==undefined&&react.createElement(ZoomLightbox,{gallery:lightbox.gallery,initialIndex:lightbox.index,load,labels,onClose:()=>setLightbox(undefined)})
 				]
 			});
 		}

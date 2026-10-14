@@ -6,7 +6,7 @@ on:
 
 jobs:
   test:
-    # Pure logic + bundle sync: no desktop or browser needed.
+    # Core, bundle sync and real Chromium rendering; Desktop is tested separately.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,7 +15,12 @@ jobs:
         with:
           node-version: 24
 
-      # No install step: the package has zero runtime dependencies.
+      # All dependencies are test-only; the shipped client uses host React.
+      - name: Install development dependencies
+        run: npm ci
+
+      - name: Install Chromium test runtime
+        run: node node_modules/playwright-core/cli.js install --with-deps chromium
 
       # The committed bundle must match its sources (src/ + core).
       - name: Bundle sync check
@@ -23,4 +28,17 @@ jobs:
 
       # Core unit tests (imageCardModel, session/attachment RPC, zoom/fit, labels).
       - name: Core unit tests
-        run: node --test test/read-image-core.test.mjs
+        run: npm test
+
+      - name: Browser rendering and interaction regressions
+        run: npm run test:browser
+        env:
+          DRI_BROWSER_OUTPUT: ${{ runner.temp }}/dri-browser
+
+      - name: Preserve browser diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-regression
+          path: ${{ runner.temp }}/dri-browser
+          if-no-files-found: warn

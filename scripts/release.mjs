@@ -11,8 +11,8 @@
 //   5. create the GitHub release (tag vX.Y.Z) via the API
 //   6. npm publish (must be logged in: `npm whoami`)
 //
-// The GitHub token is read from the DSH_GITHUB_TOKEN env var, or from
-// E:\PythonFiles\.secrets\github-token-computer-use-win.txt by default.
+// The GitHub token must be supplied in DSH_GITHUB_TOKEN.
+// Prefer the CI-gated manual release process documented in PUBLISH.md.
 //
 // UI-only or description changes are NOT part of this script: update
 // README / publish/awesome-list-entry.yml / assets first (screenshots come
@@ -27,6 +27,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
 const version = process.argv[2];
 const notes = process.argv[3] ?? "";
+const token = process.env.DSH_GITHUB_TOKEN;
 
 function fail(msg) {
 	console.error(`[release] FAIL: ${msg}`);
@@ -40,6 +41,7 @@ function semver(v) {
 	return /^v?\d+\.\d+\.\d+$/.test(v ?? "");
 }
 if (!semver(version)) fail(`version must be like 0.3.1, got "${version}"`);
+if (!token) fail("Set DSH_GITHUB_TOKEN before running this publishing script");
 const tag = `v${version.replace(/^v/, "")}`;
 
 // --- 1. clean tree -----------------------------------------------------------
@@ -61,15 +63,12 @@ pkg.version = version;
 writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
 console.log(`[release] ${prev} -> ${version}`);
 run("git", ["add", "package.json"]);
-run("git", ["-c", "user.name=Yu-tao-Li", "-c", "user.email=liytao.nw@foxmail.com",
-	"commit", "-m", `release: ${tag}`, "-m", notes || `version ${prev} -> ${version}`]);
+run("git", ["commit", "-m", `release: ${tag}`, "-m", notes || `version ${prev} -> ${version}`]);
 
 // --- 4. push main --------------------------------------------------------------
 run("git", ["push", "origin", "main"]);
 
 // --- 5. GitHub release ----------------------------------------------------------
-const token = process.env.DSH_GITHUB_TOKEN
-	?? readFileSync("E:/PythonFiles/.secrets/github-token-computer-use-win.txt", "utf8").trim();
 const res = await fetch("https://api.github.com/repos/Yu-tao-Li/dsh-read-image-view/releases", {
 	method: "POST",
 	headers: {
