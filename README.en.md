@@ -16,7 +16,7 @@ Client-only, with zero production dependencies and the host's session-authorized
 Search for **dsh-read-image-view** in the DSH plugin marketplace, install and restart Harness. For a command-line Web installation:
 
 ```powershell
-dsh plugin --profile web add npm:dsh-read-image-view@0.4.0
+dsh plugin --profile web add npm:dsh-read-image-view@0.5.0
 ```
 
 Restart `dsh web`, ask the model to read an image, then click its preview.
@@ -88,7 +88,7 @@ Source: `src/client-src.js`; pure logic: `lib/read-image-core.mjs`; committed re
 在 DSH 插件市场搜索 **dsh-read-image-view**，安装后重启 Harness。命令行 Web 用户也可以运行：
 
 ```powershell
-dsh plugin --profile web add npm:dsh-read-image-view@0.4.0
+dsh plugin --profile web add npm:dsh-read-image-view@0.5.0
 ```
 
 随后重启 `dsh web`。让模型读取图片，点预览即可打开画廊。
