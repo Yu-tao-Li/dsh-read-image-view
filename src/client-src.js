@@ -563,6 +563,36 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 
+		const EMPTY_TOOL_CALLS = [];
+		const emptyTurnTools = {
+			getSnapshot: () => EMPTY_TOOL_CALLS,
+			subscribe: () => () => {}
+		};
+
+		function McpImageTail({ turn, sessionId, useChat, t, imageUrl }) {
+			const source = useChat?.((snapshot) => snapshot.nodes?.turnDataSource?.(turn.turn, "tool-call")) ?? emptyTurnTools;
+			const calls = react.useSyncExternalStore(source.subscribe, source.getSnapshot);
+			const gallery = react.useMemo(() => mcpImageAttachments(calls), [calls]);
+			const load = react.useCallback((attachment) => imageUrl(sessionId, attachment), [imageUrl, sessionId]);
+			const [lightbox, setLightbox] = react.useState(null);
+			if (gallery.length === 0) return null;
+			const labels = imageGalleryLabels(t);
+			const title = String(t("image.label")).includes("图") ? "MCP 图片" : "MCP images";
+			return react.createElement("section", { "aria-label": title, "data-dri-mcp-images": "" },
+				react.createElement("div", { className: css.summary }, title),
+				react.createElement("div", { className: css.grid }, gallery.map((attachment, index) =>
+					react.createElement(ImageFrame, {
+						key: `${index}:${attachment.attachmentId}`, attachment, load, labels,
+						onOpen: () => setLightbox({ gallery, index })
+					})
+				)),
+				lightbox !== null && react.createElement(ZoomLightbox, {
+					gallery: lightbox.gallery, initialIndex: lightbox.index, load, labels,
+					onClose: () => setLightbox(null)
+				})
+			);
+		}
+
 		//#region apply
 		/** Required service: the slot registry that owns the Tool render seats. */
 		const inject = ["slots"];
@@ -583,6 +613,18 @@ window.__ModuleLoader__.load({
 				// shadows it when installed.
 				priority: -1
 			}, ImageRow));
+			// Older carriers may have no Chat Turn Tail. Wait for its owner and
+			// image service independently of the read_image tool-row registration.
+			ctx.inject(["uiConversation"], (scope) => {
+				if (typeof scope.uiConversation.imageUrl !== "function") return;
+				const imageUrl = scope.uiConversation.imageUrl.bind(scope.uiConversation);
+				scope.slots.inject("conversation.chat.turnTail", () => scope.slots.register({
+					name: "conversation.chat.turnTail",
+					id: "dsh-read-image-view:mcp-images",
+					locale: "conversation",
+					inject: () => ({ imageUrl })
+				}, McpImageTail));
+			});
 		}
 		//#endregion
 
