@@ -1,0 +1,74 @@
+name: Publish npm release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published GitHub Release tag (e.g. v0.5.0)
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Download and verify the GitHub Release tarball
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          $tag = $env:RELEASE_TAG
+          if ($tag -cnotmatch '^v[0-9]+\.[0-9]+\.[0-9]+$') {
+            throw "Expected a stable version tag, for example v0.5.0"
+          }
+
+          $name = 'dsh-read-image-view'
+          $version = $tag.Substring(1)
+          $filename = "$name-$version.tgz"
+          $archive = Join-Path $env:RUNNER_TEMP $filename
+          $releaseJson = gh release view $tag --repo $env:GITHUB_REPOSITORY --json tagName,isDraft,isPrerelease,assets
+          if ($LASTEXITCODE -ne 0) { throw "Unable to read the GitHub Release" }
+          $release = $releaseJson | ConvertFrom-Json
+          if ($release.tagName -cne $tag -or $release.isDraft -or $release.isPrerelease) {
+            throw "Expected a published stable release for $tag"
+          }
+
+          $asset = $release.assets | Where-Object { $_.name -ceq $filename }
+          if ($asset.digest -cnotmatch '^sha256:[a-f0-9]{64}$') {
+            throw "Release asset $filename has no SHA-256 digest"
+          }
+          gh release download $tag --repo $env:GITHUB_REPOSITORY --pattern $filename --dir $env:RUNNER_TEMP
+          if ($LASTEXITCODE -ne 0) { throw "Unable to download $filename" }
+          $digest = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($asset.digest -cne "sha256:$digest") { throw "Release tarball digest mismatch" }
+
+          $manifestJson = tar -xOf $archive package/package.json
+          if ($LASTEXITCODE -ne 0) { throw "Missing package manifest in $filename" }
+          $manifest = $manifestJson | ConvertFrom-Json
+          if ($manifest.name -cne $name -or $manifest.version -cne $version) {
+            throw "Release tarball package name or version mismatch"
+          }
+          "RELEASE_TARBALL=$archive" | Out-File -LiteralPath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Publish to npm with OIDC
+        shell: pwsh
+        run: npm publish $env:RELEASE_TARBALL --ignore-scripts --access public --tag latest
