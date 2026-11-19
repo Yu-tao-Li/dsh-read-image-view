@@ -16,7 +16,7 @@ window.__ModuleLoader__.load({
 		 * Row chrome: the same layout and design tokens as the built-in
 		 * ToolRow (height, typography, ioCard, inspect button, running sweep),
 		 * namespaced under `dri-` so the global stylesheet never collides.
-		 * Plus the expanded frame, the "read N images" grid, and the zoom
+		 * Plus the expanded frame, the per-result image grid, and the zoom
 		 * lightbox.
 		 */
 		const CSS = `.dri-root{flex-direction:column;display:flex}
@@ -48,10 +48,6 @@ window.__ModuleLoader__.load({
 .dri-frameText{color:var(--dsw-alias-label-tertiary);font:var(--dsw-font-xs-13)}
 .dri-grid{align-items:flex-start;flex-wrap:wrap;gap:8px;margin:4px 0 4px 4px;display:flex}
 .dri-grid .dri-frame{margin:0}
-.dri-gridTile{cursor:default;border:1px dashed var(--dsw-alias-border-l2);border-radius:16px;align-self:flex-start;align-items:center;flex:none;gap:8px;min-width:120px;max-width:240px;margin:0;padding:10px 14px;display:flex}
-.dri-gridTileText{color:var(--dsw-alias-label-tertiary);text-overflow:ellipsis;white-space:nowrap;font:var(--dsw-font-xs-13);overflow:hidden}
-.dri-gridTile[data-state=error]{border-color:var(--dsw-alias-state-error-primary)}
-.dri-gridTile[data-state=error] .dri-gridTileText{color:var(--dsw-alias-state-error-primary)}
 .dri-lbBackdrop{border:0;margin:0;padding:0;width:100vw;height:100dvh;max-width:none;max-height:none;position:fixed;inset:0;z-index:2147483000;background:var(--dsw-alias-bg-mask-1,rgba(0,0,0,.45));-webkit-backdrop-filter:var(--dsw-mask-blur,blur(2px));backdrop-filter:var(--dsw-mask-blur,blur(2px));display:flex;align-items:center;justify-content:center;overflow:hidden}
 .dri-lbBackdrop:not([open]){display:none}
 .dri-lbBackdrop::backdrop{background:transparent}
@@ -96,8 +92,6 @@ window.__ModuleLoader__.load({
 			frame: "dri-frame",
 			frameText: "dri-frameText",
 			grid: "dri-grid",
-			gridTile: "dri-gridTile",
-			gridTileText: "dri-gridTileText",
 			lbBackdrop: "dri-lbBackdrop",
 			lbStage: "dri-lbStage",
 			lbImg: "dri-lbImg",
@@ -156,42 +150,6 @@ window.__ModuleLoader__.load({
 			}
 			if (parts.length === 0 && block.error !== void 0) parts.push(`${block.error.name}: ${block.error.code}`);
 			return parts.length === 0 ? null : parts.join("\n");
-		}
-		/**
-		 * Reduce a conversation snapshot to the group decisions
-		 * readImageGroup consumes: ordered read markers for the in-window
-		 * read_image results; OTHER tool results, assistant text/thinking
-		 * and model retries stay soft (a group is "read N images within one
-		 * user request", not "back-to-back reads"); a group closes only on
-		 * a new user interaction / turn boundary — user message, steering,
-		 * command, context injection, turn error, turn max-tokens,
-		 * compaction, or an unknown node. In-flight read_image calls
-		 * (runningCalls — they have no node yet) come back as ordered
-		 * callIds appended after the nodes.
-		 * @param snap - the conversation snapshot (nodes + runningCalls).
-		 * @returns {entries, running} for readImageGroup.
-		 */
-		function groupSnapshot(snap) {
-			const entries = [];
-			for (const n of snap.nodes ?? []) {
-				if (n.kind === "tool-result") {
-					// Other tools do NOT close the group — only user
-					// interactions do ("出现的时候合并展示", not "连续读").
-					entries.push(n.call?.name === "read_image"
-						? { kind: "read", callId: n.callId }
-						: { kind: "soft" });
-				} else if (n.kind === "user" || n.kind === "steering" || n.kind === "command"
-					|| n.kind === "context" || n.kind === "turn-error"
-					|| n.kind === "turn-max-tokens" || n.kind === "compaction") {
-					entries.push({ kind: "break" });
-				} else {
-					entries.push({ kind: "soft" });
-				}
-			}
-			const running = (snap.runningCalls ?? [])
-				.filter((c) => c.name === "read_image")
-				.map((c) => c.callId);
-			return { entries, running };
 		}
 		//#endregion
 
@@ -355,241 +313,178 @@ window.__ModuleLoader__.load({
 
 		//#endregion
 
-		//#region ImageRow
-		/**
-		 * read_image row: icon + Read image · {path} in the shared disclosure
-		 * chrome. A settled image result opens expanded by default so the
-		 * picture shows at the message-image single-fit size (240px long edge)
-		 * without a click — there is no tiny collapsed thumbnail. The path is
-		 * PLAIN TEXT on purpose: opening the file with the OS default app (the
-		 * host openFile action) would pop the system image viewer over the GUI,
-		 * which users read as "the image left the page" — the in-page frame
-		 * opens the in-page zoom lightbox instead. The expanded body shows the
-		 * image at single-fit size (click → zoom lightbox); the Output metadata
-		 * card appears only when the result has no image (text-only or a failed
-		 * call), since an image result's text is just its redundant envelope.
-		 * The lightbox zooms via control buttons and the mouse wheel, with
-		 * drag-to-pan when zoomed.
-		 * A failed call has no image part: the row surfaces the model-facing
-		 * error text through its Output section and its first line in the
-		 * collapsed summary.
-		 *
-		 * READ-N-IMAGES GROUPING: every read_image result that appears within
-		 * one user request is merged into ONE row — not only back-to-back
-		 * reads (other tool calls and model text between them do not split
-		 * the group; only a new user message / steering / command / turn
-		 * boundary does). The FIRST read of the request renders the merged
-		 * row — summary "Read image · 读取了 N 张图片" (or the error line when
-		 * no member has an image) — and the expanded body is a wrapping grid
-		 * of one frame per member image; in-flight members show a dashed
-		 * loading tile. The remaining members render null (the lead's grid
-		 * covers the group). Grouping reads the 0.2 Chat snapshot's legacy
-		 * compatibility slice; older hosts fall back to their session snapshot
-		 * shape, and hosts without either hook render a solo row.
-		 * @param props - DSH 0.2 ToolCallViewProps plus session standard props.
-		 */
-		function ImageRow({ phase, toolName, block, cwd, inspect, t, loadImage, callId, useChat, useSession }) {
-			// read_image rows are expanded by default so the picture shows at
-			// message-image size without a click. The row mounts while the call
-			// is still running (imageBody is null then), so defaulting to true —
-			// not to imageBody !== null — keeps it open once the result settles.
-			const imageBody = phase === "result" ? imageCardModel(block) : null;
-   const imageParts = phase === "result" ? imageAttachments(block) ?? [] : [];
-			const [expanded, setExpanded] = (0, react.useState)(true);
-			// Snapshot the gallery and selected index when opening a member.
-			const [lightbox, setLightbox] = (0, react.useState)(void 0);
-			const done = phase === "result";
-			const argsRaw = (done ? block.call?.argsRaw : block.argsRaw) ?? "";
-			const state = !done ? "running" : block.error?.code === "interrupted" ? "stopped" : block.isError ? "error" : "ok";
-			const parsed = parseArgs(argsRaw);
-			const isObj = typeof parsed === "object" && parsed !== null;
-			const path = isObj ? pickString(parsed, FILE_PATH_KEYS) : void 0;
-			const rawSummary = path ?? (isObj ? Object.values(parsed).find((v) => typeof v === "string" && v !== "") : argsRaw) ?? argsRaw;
-			const summary = firstLine(relativizeToCwd(String(rawSummary), cwd));
-			const output = done ? settledOutputText(block) : null;
-			const errorSummary = state === "error" && output !== null ? firstLine(output) : null;
-			// DSH 0.2 owns session authorization and the attachment URL lifecycle.
-			const load = typeof loadImage === "function" ? loadImage : null;
-			const labels = imageGalleryLabels(t);
-
-			// DSH 0.2's session standard kit exposes this selector to every
-			// session-scoped tool view through ui-session.
-			const snap = typeof useChat === "function"
-				? useChat((s) => s.legacy ?? s)
-				: typeof useSession === "function" ? useSession((s) => s) : null;
-			const group = (0, react.useMemo)(() => {
-				if (snap === null || callId === void 0) return null;
-				const { entries, running } = groupSnapshot(snap);
-				return readImageGroup(entries, running, callId);
-			}, [snap, callId]);
-			const members = (0, react.useMemo)(() => {
-				if (snap === null || group === null || !group.lead || group.members.length < 2) return null;
-				const nodeById = new Map();
-				for (const n of snap.nodes ?? []) if (n.kind === "tool-result") nodeById.set(n.callId, n);
-				const runningById = new Map();
-				for (const c of snap.runningCalls ?? []) if (c.name === "read_image") runningById.set(c.callId, c);
-				return group.members.map((cid) => {
-					const node = nodeById.get(cid);
-					const src = node ?? runningById.get(cid) ?? null;
-					if (src === null) return { callId: cid, state: "missing", attachment: null, tileText: null };
-					const settled = node !== undefined;
-					const mState = !settled ? "running"
-						: node.error?.code === "interrupted" ? "stopped"
-						: node.isError ? "error" : "ok";
-					const attachments = settled ? imageAttachments(node) ?? [] : [];
-     const attachment = attachments[0] ?? null;
-					const text = settled ? settledOutputText(node) : null;
-					const args = parseArgs(src.call?.argsRaw ?? src.argsRaw ?? "");
-					const p = typeof args === "object" && args !== null ? pickString(args, FILE_PATH_KEYS) : void 0;
-					return { callId: cid, state: mState, attachment, attachments, tileText: p !== void 0 ? relativizeToCwd(p, cwd) : firstLine(text ?? "") || null };
-				});
-			}, [snap, group, cwd]);
-			if (group !== null && group.members.length > 1 && !group.lead) return null;
-			const grouped = members !== null;
-   const gallery = grouped ? members.flatMap(member=>member.attachments??[]) : imageParts;
-			const rowState = grouped
-				? members.some((m) => m.state === "running") ? "running"
-					: members.some((m) => m.state === "error") ? "error"
-					: members.some((m) => m.state === "stopped") ? "stopped" : "ok"
-				: state;
-			const groupErrorLine = grouped ? members.find((m) => (m.state === "error" || m.state === "stopped") && m.tileText !== null)?.tileText ?? null : null;
-			const count=gallery.length || (grouped ? members.length : 0);
-   const groupLabel = grouped || gallery.length>1 ? readImageGroupLabel(t, count) : null;
-			const groupNoImages = grouped && members.every((m) => m.attachment === null);
-			const failureLine = !grouped ? (state === "error" ? errorSummary ?? null : null) : null;
-			const summaryText = grouped ? (groupNoImages && groupErrorLine !== null ? `${groupLabel} · ${groupErrorLine}` : groupLabel) : (groupLabel ?? failureLine ?? summary);
-			const summaryErrorStyle = grouped ? groupNoImages && groupErrorLine !== null : failureLine !== null;
-			const expandable = grouped ? members.some((m) => m.attachment !== null || m.state === "error" || m.state === "stopped") : output !== null || imageBody !== null;
-			const open = expanded && expandable;
-			const status = rowState === "running" ? t("row.running") : rowState === "error" ? t("row.failed") : rowState === "stopped" ? t("row.stopped") : null;
-			const toggleExpand = () => {
-				setExpanded((v) => !v);
-			};
-   const openLightboxFor = attachment => {
-    if(attachment===null||load===null)return;
-    const index=gallery.indexOf(attachment);
-    if(index>=0)setLightbox({gallery:[...gallery],index});
-   };
-			/** Leading-slot state substitution: the browse icon yields to the
-			 *  terminal state semantic (error = red, interrupted = amber). */
-			const icon = rowState === "error" ? (0, react_jsx_runtime.jsx)(primitives.StateDot, { state: "error" })
-				: rowState === "stopped" ? (0, react_jsx_runtime.jsx)(primitives.StateDot, { state: "warning" })
-				: (0, react_jsx_runtime.jsx)(primitives.IconBrowseOutlineRegular, { size: 14 });
-			return (0, react_jsx_runtime.jsxs)("div", {
-				className: css.root,
-				"data-tool": toolName,
-				"data-state": rowState,
-				children: [
-					status !== null && (0, react_jsx_runtime.jsx)("span", {
-						className: css.visuallyHidden,
-						children: status
-					}),
-					(0, react_jsx_runtime.jsx)(primitives.DisclosureRow, {
-						rowClassName: css.row,
-						leadingClassName: css.leading,
-						titleClassName: css.title,
-						chevronClassName: css.chevron,
-						icon,
-						// Figma design literal, not translatable copy (same posture as the built-in TOOL_TITLES).
-						title: "Read image",
-						open,
-						expandable,
-						expandOnRowClick: true,
-						keepContentWhenOpen: true,
-						onToggle: toggleExpand,
-						collapsedContent: summaryText !== "" && [
-							(0, react_jsx_runtime.jsx)("span", {
-								className: css.sep,
-								"aria-hidden": true
-							}),
-							// Plain text (NOT an openFile link): the host
-							// openFile action launches the OS image viewer,
-							// which covers the GUI — in-page viewing belongs to
-							// the frame lightbox.
-							(0, react_jsx_runtime.jsx)("span", {
-								className: summaryErrorStyle ? `${css.summary} ${css.errorSummary}` : css.summary,
-								children: summaryText
-							})
-						],
-						children: (0, react_jsx_runtime.jsxs)("div", {
-							className: css.bodyWrap,
-							children: [
-								grouped
-									? (0, react_jsx_runtime.jsx)("div", {
-										className: css.grid,
-										children: members.map((m) => {
-											if (m.state === "missing") return null;
-           if(m.attachment!==null&&load!==null)return (m.attachments??[m.attachment]).map((attachment,index)=>react.createElement(ImageFrame,{attachment,load,labels,onOpen:()=>openLightboxFor(attachment),key:m.callId+':'+index}));
-											return (0, react_jsx_runtime.jsx)("div", {
-												className: css.gridTile,
-												"data-state": m.state,
-												children: (0, react_jsx_runtime.jsx)("span", {
-													className: css.gridTileText,
-													children: m.tileText ?? labels.loading
-												})
-											}, m.callId);
-										})
-									})
-									: (0, react_jsx_runtime.jsxs)(react.Fragment, {
-										children: [
-           load!==null&&imageParts.map((attachment,index)=>react.createElement(ImageFrame,{attachment,load,labels,onOpen:()=>openLightboxFor(attachment),key:index})),
-											output !== null && imageBody === null && (0, react_jsx_runtime.jsxs)("div", {
-												className: css.ioCard,
-												children: [(0, react_jsx_runtime.jsxs)("div", {
-													className: css.ioSection,
-													children: [(0, react_jsx_runtime.jsx)("span", {
-														className: css.ioLabel,
-														children: "OUT"
-													}), (0, react_jsx_runtime.jsx)("span", {
-														className: css.ioText,
-														"data-error": state === "error" || void 0,
-														children: output
-													})]
-												})]
-											})
-										]
-									}),
-								inspect !== void 0 && (0, react_jsx_runtime.jsxs)("button", {
-									type: "button",
-									className: css.inspectButton,
-									onClick: inspect,
-									children: [(0, react_jsx_runtime.jsx)(primitives.IconInspectOutlineRegular, {}), "Inspect"]
-								})]
-						})
-					}),
-     lightbox!==undefined&&react.createElement(ZoomLightbox,{gallery:lightbox.gallery,initialIndex:lightbox.index,load,labels,onClose:()=>setLightbox(undefined)})
-				]
-			});
-		}
-		//#endregion
-
-		const EMPTY_TOOL_CALLS = [];
-		const emptyTurnTools = {
-			getSnapshot: () => EMPTY_TOOL_CALLS,
-			subscribe: () => () => {}
-		};
-
-		function McpImageTail({ turn, sessionId, useChat, t, imageUrl }) {
-			const source = useChat?.((snapshot) => snapshot.nodes?.turnDataSource?.(turn.turn, "tool-call")) ?? emptyTurnTools;
-			const calls = react.useSyncExternalStore(source.subscribe, source.getSnapshot);
-			const gallery = react.useMemo(() => mcpImageAttachments(calls), [calls]);
-			const load = react.useCallback((attachment) => imageUrl(sessionId, attachment), [imageUrl, sessionId]);
-			const [lightbox, setLightbox] = react.useState(null);
-			if (gallery.length === 0) return null;
-			const labels = imageGalleryLabels(t);
-			const title = String(t("image.label")).includes("图") ? "MCP 图片" : "MCP images";
-			return react.createElement("section", { "aria-label": title, "data-dri-mcp-images": "" },
-				react.createElement("div", { className: css.summary }, title),
-				react.createElement("div", { className: css.grid }, gallery.map((attachment, index) =>
-					react.createElement(ImageFrame, {
-						key: `${index}:${attachment.attachmentId}`, attachment, load, labels,
-						onOpen: () => setLightbox({ gallery, index })
+		/** One gallery per tool result, shared by read_image and MCP. */
+		function ImageGallery({ gallery, load, labels }) {
+			const [selected, setSelected] = react.useState(null);
+			const h = react.createElement;
+			return h(react.Fragment, null,
+				h("div", { className: css.grid }, gallery.map((attachment, index) =>
+					h(ImageFrame, {
+						key: `${index}:${attachment.attachmentId}`,
+						attachment, load, labels,
+						onOpen: () => setSelected({ gallery, index })
 					})
 				)),
-				lightbox !== null && react.createElement(ZoomLightbox, {
-					gallery: lightbox.gallery, initialIndex: lightbox.index, load, labels,
-					onClose: () => setLightbox(null)
+				selected !== null && h(ZoomLightbox, {
+					gallery: selected.gallery, initialIndex: selected.index, load, labels,
+					onClose: () => setSelected(null)
 				})
+			);
+		}
+
+		/** Keep each read_image preview with the invocation and its input path. */
+		function ImageRow({ phase, toolName, block, cwd, inspect, t, loadImage }) {
+			const h = react.createElement;
+			const [expanded, setExpanded] = react.useState(true);
+			const done = phase === "result";
+			const gallery = done ? imageAttachments(block) ?? [] : [];
+			const argsRaw = (done ? block.call?.argsRaw : block.argsRaw) ?? "";
+			const state = !done ? "running"
+				: block.error?.code === "interrupted" ? "stopped" : block.isError ? "error" : "ok";
+			const parsed = parseArgs(argsRaw);
+			const args = typeof parsed === "object" && parsed !== null ? parsed : {};
+			const rawSummary = pickString(args, FILE_PATH_KEYS)
+				?? Object.values(args).find((value) => typeof value === "string" && value !== "") ?? argsRaw;
+			const output = done ? settledOutputText(block) : null;
+			const errorSummary = state === "error" && output !== null ? firstLine(output) : null;
+			const summary = errorSummary ?? firstLine(relativizeToCwd(rawSummary, cwd));
+			const hasGallery = gallery.length > 0 && typeof loadImage === "function";
+			const expandable = hasGallery || output !== null;
+			const status = state === "running" ? t("row.running")
+				: state === "error" ? t("row.failed") : state === "stopped" ? t("row.stopped") : null;
+			const icon = state === "error" ? h(primitives.StateDot, { state: "error" })
+				: state === "stopped" ? h(primitives.StateDot, { state: "warning" })
+					: h(primitives.IconBrowseOutlineRegular, { size: 14 });
+
+			return h("div", { className: css.root, "data-tool": toolName, "data-state": state },
+				status !== null && h("span", { className: css.visuallyHidden }, status),
+				h(primitives.DisclosureRow, {
+					rowClassName: css.row,
+					leadingClassName: css.leading,
+					titleClassName: css.title,
+					chevronClassName: css.chevron,
+					icon,
+					title: "Read image",
+					open: expanded && expandable,
+					expandable,
+					expandOnRowClick: true,
+					keepContentWhenOpen: true,
+					onToggle: () => setExpanded((value) => !value),
+					collapsedContent: summary !== "" && h(react.Fragment, null,
+						h("span", { className: css.sep, "aria-hidden": true }),
+						h("span", { className: errorSummary === null ? css.summary : `${css.summary} ${css.errorSummary}` }, summary)
+					)
+				},
+				h("div", { className: css.bodyWrap },
+					hasGallery && h(ImageGallery, { gallery, load: loadImage, labels: imageGalleryLabels(t) }),
+					!hasGallery && output !== null && h("div", { className: css.ioCard },
+						h("div", { className: css.ioSection },
+							h("span", { className: css.ioLabel }, "OUT"),
+							h("span", { className: css.ioText, "data-error": state === "error" || void 0 }, output)
+						)
+					),
+					inspect !== void 0 && h("button", { type: "button", className: css.inspectButton, onClick: inspect },
+						h(primitives.IconInspectOutlineRegular, {}), "Inspect"
+					)
+				))
+			);
+		}
+
+		const CONVERSATION_ROOT = "[data-conversation-content]";
+		const CALL_ANCHOR = "[data-chat-call-id]";
+		const TOOL_NODE = '[data-chat-flow-kind="tool-call"][data-chat-node-key]';
+		const EMPTY_CHAT_SOURCE = { getSnapshot: () => undefined, subscribe: () => () => {} };
+
+		function readMountedCalls(root) {
+			const calls = new Map();
+			for (const anchor of root.querySelectorAll(CALL_ANCHOR)) {
+				const node = anchor.closest(TOOL_NODE);
+				if (node === null || anchor.closest(CONVERSATION_ROOT) !== root) continue;
+				const nodeKey = node.dataset.chatNodeKey;
+				if (!calls.has(nodeKey)) calls.set(nodeKey, new Map());
+				calls.get(nodeKey).set(anchor.dataset.chatCallId, anchor);
+			}
+			return calls;
+		}
+
+		function useMountedCalls(root) {
+			const [calls, setCalls] = react.useState(() => new Map());
+			react.useEffect(() => {
+				const sync = () => setCalls(readMountedCalls(root));
+				const observer = new MutationObserver((changes) => {
+					const affectsCalls = changes.some((change) => change.type === "attributes"
+						|| [...change.addedNodes, ...change.removedNodes].some((node) =>
+							node.nodeType === 1 && (node.matches(CALL_ANCHOR) || node.querySelector(CALL_ANCHOR))
+						));
+					if (affectsCalls) sync();
+				});
+				observer.observe(root, {
+					subtree: true, childList: true, attributes: true,
+					attributeFilter: ["data-chat-call-id", "data-chat-flow-kind", "data-chat-node-key"]
+				});
+				sync();
+				return () => observer.disconnect();
+			}, [root]);
+			return calls;
+		}
+
+		function McpToolImages({ nodeSource, anchors, load, t }) {
+			const node = react.useSyncExternalStore(nodeSource.subscribe, nodeSource.getSnapshot);
+			const results = react.useMemo(() => node?.data?.root ? mcpImageResults([node.data]) : [], [node]);
+			const labels = imageGalleryLabels(t);
+			const title = String(t("image.label")).includes("图") ? "MCP 图片" : "MCP images";
+			return results.flatMap(({ callId, attachments }) => {
+				const anchor = anchors.get(callId);
+				if (anchor === undefined) return [];
+				const h = react.createElement;
+				return [react_dom.createPortal(h("section", { "aria-label": title, "data-dri-mcp-images": "" },
+					h(ImageGallery, { gallery: attachments, load, labels })
+				), anchor, callId)];
+			});
+		}
+
+		function SessionMcpImages({ root, sessionId, uiConversation, t }) {
+			const source = react.useMemo(() => {
+				try {
+					return uiConversation.binding(sessionId).target("chat");
+				} catch {
+					return EMPTY_CHAT_SOURCE;
+				}
+			}, [uiConversation, sessionId]);
+			const snapshot = react.useSyncExternalStore(source.subscribe, source.getSnapshot);
+			const calls = useMountedCalls(root);
+			const load = react.useCallback((attachment) => uiConversation.imageUrl(sessionId, attachment), [uiConversation, sessionId]);
+			if (typeof snapshot?.nodes?.source !== "function" || root.dataset.conversationSession !== sessionId) return null;
+			return [...calls].map(([nodeKey, anchors]) => react.createElement(McpToolImages, {
+				key: nodeKey, nodeSource: snapshot.nodes.source(nodeKey), anchors, load, t
+			}));
+		}
+
+		/**
+		 * The host's keyed tool slot has no wildcard decorator. Keep its own
+		 * tool rows and portal previews into their call-id anchors, scoped to
+		 * the conversation body. The frame is mounted for both live and
+		 * historical sessions, independently of the turn footer.
+		 */
+		function ConversationImageLayer({ children, uiConversation, t }) {
+			const marker = react.useRef(null);
+			const [scope, setScope] = react.useState(null);
+			react.useEffect(() => {
+				const root = marker.current?.closest(CONVERSATION_ROOT);
+				if (!root) return;
+				const sync = () => {
+					const sessionId = root.dataset.conversationSession;
+					setScope(sessionId ? { root, sessionId } : null);
+				};
+				const observer = new MutationObserver(sync);
+				observer.observe(root, { attributes: true, attributeFilter: ["data-conversation-session"] });
+				sync();
+				return () => observer.disconnect();
+			}, []);
+			const h = react.createElement;
+			return h(react.Fragment, null, children,
+				h("span", { hidden: true, ref: marker }),
+				scope !== null && h(SessionMcpImages, { key: scope.sessionId, ...scope, uiConversation, t })
 			);
 		}
 
@@ -613,17 +508,15 @@ window.__ModuleLoader__.load({
 				// shadows it when installed.
 				priority: -1
 			}, ImageRow));
-			// Older carriers may have no Chat Turn Tail. Wait for its owner and
-			// image service independently of the read_image tool-row registration.
 			ctx.inject(["uiConversation"], (scope) => {
-				if (typeof scope.uiConversation.imageUrl !== "function") return;
-				const imageUrl = scope.uiConversation.imageUrl.bind(scope.uiConversation);
-				scope.slots.inject("conversation.chat.turnTail", () => scope.slots.register({
-					name: "conversation.chat.turnTail",
+				const uiConversation = scope.uiConversation;
+				if (typeof uiConversation.binding !== "function" || typeof uiConversation.imageUrl !== "function") return;
+				scope.slots.inject("conversation.hero.frame", () => scope.slots.register({
+					name: "conversation.hero.frame",
 					id: "dsh-read-image-view:mcp-images",
 					locale: "conversation",
-					inject: () => ({ imageUrl })
-				}, McpImageTail));
+					inject: () => ({ uiConversation })
+				}, ConversationImageLayer));
 			});
 		}
 		//#endregion

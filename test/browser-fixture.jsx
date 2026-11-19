@@ -13,7 +13,7 @@ window.__ModuleLoader__={load:entry=>{
  const client=entry.factory(name=>name==='react'?React:name==='react/jsx-runtime'?jsxRuntime:name==='react-dom'?ReactDOM:name==='@deepseek-ai/dsh-client-ui-primitives'?primitives:(()=>{throw Error('Unknown fixture module '+name)})());
  const context = {
   inject: (_services, apply) => apply(context),
-  uiConversation: { imageUrl(sessionId, attachment) {
+  uiConversation: { binding() { return { target: () => window.fixtureChat }; }, imageUrl(sessionId, attachment) {
    window.mcpSessions.push(sessionId);
    return window.fixtureLoad(attachment);
   } },
@@ -21,8 +21,8 @@ window.__ModuleLoader__={load:entry=>{
    inject: (_name, apply) => apply(),
    register: (entry, component) => {
     if (entry.key === 'read_image') window.ImageRow = component;
-    else if (entry.name === 'conversation.chat.turnTail') {
-     window.McpImageTail = component;
+    else if (entry.name === 'conversation.hero.frame') {
+     window.ConversationImageLayer = component;
      window.mcpInjectedProps = entry.inject();
     }
     return () => {};
@@ -61,18 +61,34 @@ window.mountFixture=(references,options={})=>{
 };
 window.unmountFixture=()=>ReactDOM.flushSync(()=>root.render(null));
 window.resolveLoads=()=>{window.delayIds.clear();for(const resolve of window.deferred.splice(0))resolve();};
-window.mountMcpFixture = (references) => {
+window.mountReadPair = () => {
+ const read = (callId, path) => h(window.ImageRow, {
+  key: callId, phase: 'result', toolName: 'read_image', t, loadImage: window.fixtureLoad,
+  block: {
+   kind: 'tool-result', callId, call: { name: 'read_image', argsRaw: JSON.stringify({ file_path: path }) },
+   content: [{ type: 'image', attachment: window.makeReference(callId, 400, 300) }]
+  }
+ });
+ ReactDOM.flushSync(() => root.render([read('read-first', 'first.png'), read('read-second', 'second.png')]));
+};
+window.mountMcpFixture = (references, hideSecond = false) => {
  window.mcpSessions = [];
- const calls = [{ root: {
-  kind: 'tool-result', name: 'mcp__test__capture',
-  content: references.map(attachment => ({ type: 'image', attachment }))
- } }];
- const source = { subscribe: () => () => {}, getSnapshot: () => calls };
- const useChat = select => select({ nodes: { turnDataSource(turn, kind) {
-  if (turn !== 4 || kind !== 'tool-call') throw Error('Unexpected turn data query');
-  return source;
- } } });
- ReactDOM.flushSync(() => root.render(h(window.McpImageTail, {
-  ...window.mcpInjectedProps, turn: { turn: 4 }, sessionId: 'mcp-session', useChat, t
- })));
+ const makeSource = (callId, refs) => {
+  const node = { data: { root: {
+   kind: 'tool-result', callId, name: 'mcp__test__capture',
+   content: refs.map(attachment => ({ type: 'image', attachment }))
+  } } };
+  return { subscribe: () => () => {}, getSnapshot: () => node };
+ };
+ const sources = { first: makeSource('first', references.slice(0, 2)), second: makeSource('second', references.slice(2)) };
+ const snapshot = { nodes: { source: (key) => sources[key] } };
+ window.fixtureChat = { subscribe: () => () => {}, getSnapshot: () => snapshot };
+ const call = (key) => h('div', {
+  key, 'data-chat-flow-kind': 'tool-call', 'data-chat-node-key': key
+ }, h('div', { 'data-chat-call-id': key }, 'Tool result ' + key));
+ ReactDOM.flushSync(() => root.render(h('div', {
+  'data-conversation-content': '', 'data-conversation-session': 'mcp-session'
+ }, h(window.ConversationImageLayer, { key: references.length, ...window.mcpInjectedProps, t },
+  call('first'), !hideSecond && call('second'), h('div', { 'data-turn-tail': '4' }, 'Delivered files')
+ ))));
 };

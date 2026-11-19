@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.1
+
+- Keep each `read_image` preview with the tool invocation and input path.
+- Place MCP attachment previews under their own tool results and keep the reply footer available for deliveries.
+
 ## 0.5.0
 
 - Preview MCP images admitted as session attachments in a per-turn gallery on DSH 0.2.2 Web.
