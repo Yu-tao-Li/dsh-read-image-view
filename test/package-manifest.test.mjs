@@ -17,13 +17,14 @@ test("DSH 0.2 client manifest injects the shipped client bundles", () => {
 
 test("client bundle uses the DSH 0.2 tool-view and primitive contracts", () => {
 	const source = readFileSync(join(root, "src", "client-src.js"), "utf8");
-	assert.match(source, /function ImageRow\(\{ phase, toolName, block, cwd, inspect, t, loadImage, callId, useChat, useSession \}\)/);
-	assert.match(source, /phase === "result" \? imageCardModel\(block\) : null/);
+	assert.match(source, /function ImageRow\(\{ phase, toolName, block, cwd, inspect, t, loadImage \}\)/);
+	assert.match(source, /done \? imageAttachments\(block\)/);
 	assert.match(source, /IconBrowseOutlineRegular/);
 	assert.match(source, /IconInspectOutlineRegular/);
 	assert.match(source, /key: "read_image"[\s\S]{0,500}priority: -1/);
-	assert.match(source, /useChat\(\(s\) => s\.legacy \?\? s\)/);
-	assert.match(source, /useSession/);
+	assert.match(source, /conversation\.hero\.frame/);
+	assert.match(source, /data-chat-call-id/);
+	assert.doesNotMatch(source, /conversation\.chat\.turnTail/);
 	assert.match(source, /loadImage/);
 	assert.doesNotMatch(source, /IconBrowseOutline16|IconInspectOutline12|attachmentLoader/);
 });

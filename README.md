@@ -16,7 +16,7 @@
 在 DSH 插件市场搜索 **dsh-read-image-view**，安装后重启 Harness。命令行 Web 用户也可以运行：
 
 ```powershell
-dsh plugin --profile web add npm:dsh-read-image-view@0.5.0
+dsh plugin --profile web add npm:dsh-read-image-view@0.5.1
 ```
 
 随后重启 `dsh web`。让模型读取图片，点预览即可打开画廊。
@@ -27,16 +27,16 @@ dsh plugin --profile web add npm:dsh-read-image-view@0.5.0
 
 ### MCP 附件与 Markdown 图片
 
-- 在提供对话结束区扩展的 DSH 0.2.2 Web 中，宿主已保存为会话附件的 MCP 图片会在对应回复下方显示。点击缩略图可切换图片、缩放和查看 100% 位图。
+- 在 DSH 0.2.2 Web 中，保存为会话附件的 MCP 图片显示在对应的工具结果下方。每次 `read_image` 调用也会显示自己的文件参数和图片。
 - Markdown 的 `![说明](./图.png)` 由 DSH 自带渲染器预览。相对路径以当前会话的工作区为基准。
 - MCP 音频播放依赖宿主提供会话可读取的音频附件。DSH 0.2.2 当前把音频结果投影为文字提示。
 
-### 0.4.0 有什么改进
+### 图片预览功能
 
 | 功能 | 用法 |
 | --- | --- |
 | 完整预览 | 长图和宽图按完整比例放进卡片，不截掉底部或右侧 |
-| 多图画廊 | 同次请求合并展示；一次工具结果里的所有图片均可切换 |
+| 多图画廊 | 可在同一次工具调用返回的图片之间切换 |
 | 缩放与平移 | 滚轮、＋/−、拖动、双指缩放；适应窗口或 100% |
 | 键盘 | ←/→ 切图，＋/− 缩放，`0` 为 100%，`f` 适应，Esc 关闭 |
 | 焦点 | Tab/Shift+Tab 留在画廊内，关闭后返回打开图片的按钮 |
@@ -89,7 +89,7 @@ Client-only, with zero production dependencies and the host's session-authorized
 Search for **dsh-read-image-view** in the DSH plugin marketplace, install and restart Harness. For a command-line Web installation:
 
 ```powershell
-dsh plugin --profile web add npm:dsh-read-image-view@0.5.0
+dsh plugin --profile web add npm:dsh-read-image-view@0.5.1
 ```
 
 Restart `dsh web`, ask the model to read an image, then click its preview.
@@ -100,16 +100,16 @@ If the host collapses the completed turn or image-reading tool process, expand t
 
 ### MCP attachments and Markdown images
 
-- On DSH 0.2.2 Web with the chat turn-tail slot, MCP images saved as session attachments appear below the corresponding reply. Open a thumbnail to browse the gallery, zoom, or view the bitmap at 100%.
+- On DSH 0.2.2 Web, MCP images saved as session attachments appear below their tool result. Each `read_image` invocation retains its own file path and preview.
 - DSH renders Markdown images such as `![Description](./figure.png)` inline. Relative paths use the session workspace as their base.
 - MCP audio playback requires session-readable audio attachments from the host. DSH 0.2.2 currently projects audio results as text notices.
 
-### What's new in 0.4.0
+### Image preview features
 
 | Feature | Interaction |
 | --- | --- |
 | Complete previews | Tall and wide images fit inside their cards without cropping |
-| Multi-image gallery | Group reads within a request; navigate every image in each result |
+| Multi-image gallery | Browse the images returned by one tool invocation |
 | Zoom and pan | Wheel, +/−, drag and two-finger pinch; fit or 100% |
 | Keyboard | ←/→ navigate, +/− zoom, `0` for 100%, `f` to fit, Esc to close |
 | Focus | Tab/Shift+Tab stay inside the gallery; closing restores the opener |
