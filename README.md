@@ -16,7 +16,7 @@
 在 DSH 插件市场搜索 **dsh-read-image-view**，安装后重启 Harness。命令行 Web 用户也可以运行：
 
 ```powershell
-dsh plugin --profile web add npm:dsh-read-image-view@0.4.0
+dsh plugin --profile web add npm:dsh-read-image-view@0.5.0
 ```
 
 随后重启 `dsh web`。让模型读取图片，点预览即可打开画廊。
@@ -24,6 +24,12 @@ dsh plugin --profile web add npm:dsh-read-image-view@0.4.0
 **DSH Desktop：** 已在 Windows 11 虚拟机中验证 [DSH Desktop 0.11.1](https://github.com/dataelement/dsh-desktop/releases/tag/v0.11.1)，其内置 Harness 为 **0.2.0-rc.2**，使用桌面应用自己数据目录中的 **web profile**。优先在桌面应用内安装，再用 **Harness → 重启**。外部 CLI 的默认 DSH_HOME 可能指向另一套配置；使用 CLI 时须先指定桌面应用的实际 DSH_HOME。桌面版已管理过的插件可能使用独立版本目录，外部 CLI 安装会在重启时被旧登记覆盖，因此升级请使用应用内插件管理。
 
 如果宿主折叠了“已完成”或“已读取图片”的工具过程，先展开该过程。插件自己的图片行默认展开。
+
+### MCP 附件与 Markdown 图片
+
+- 在提供对话结束区扩展的 DSH 0.2.2 Web 中，宿主已保存为会话附件的 MCP 图片会在对应回复下方显示。点击缩略图可切换图片、缩放和查看 100% 位图。
+- Markdown 的 `![说明](./图.png)` 由 DSH 自带渲染器预览。相对路径以当前会话的工作区为基准。
+- MCP 音频播放依赖宿主提供会话可读取的音频附件。DSH 0.2.2 当前把音频结果投影为文字提示。
 
 ### 0.4.0 有什么改进
 
@@ -83,7 +89,7 @@ Client-only, with zero production dependencies and the host's session-authorized
 Search for **dsh-read-image-view** in the DSH plugin marketplace, install and restart Harness. For a command-line Web installation:
 
 ```powershell
-dsh plugin --profile web add npm:dsh-read-image-view@0.4.0
+dsh plugin --profile web add npm:dsh-read-image-view@0.5.0
 ```
 
 Restart `dsh web`, ask the model to read an image, then click its preview.
@@ -91,6 +97,12 @@ Restart `dsh web`, ask the model to read an image, then click its preview.
 **DSH Desktop:** verified in a Windows 11 VM with [DSH Desktop 0.11.1](https://github.com/dataelement/dsh-desktop/releases/tag/v0.11.1), embedding Harness **0.2.0-rc.2**. It uses a **web profile** inside its own data directory. Prefer installing in the desktop app, then **Harness → Restart**. An external CLI's default DSH_HOME may belong to a different installation; set the desktop app's actual DSH_HOME before using CLI commands for it. Desktop also manages independent plugin generations: a CLI install can be overwritten by the previously registered generation on restart. Use the in-app plugin manager for upgrades.
 
 If the host collapses the completed turn or image-reading tool process, expand that process first. The plugin's image row defaults to expanded.
+
+### MCP attachments and Markdown images
+
+- On DSH 0.2.2 Web with the chat turn-tail slot, MCP images saved as session attachments appear below the corresponding reply. Open a thumbnail to browse the gallery, zoom, or view the bitmap at 100%.
+- DSH renders Markdown images such as `![Description](./figure.png)` inline. Relative paths use the session workspace as their base.
+- MCP audio playback requires session-readable audio attachments from the host. DSH 0.2.2 currently projects audio results as text notices.
 
 ### What's new in 0.4.0
 

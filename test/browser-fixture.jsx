@@ -11,7 +11,25 @@ const primitives={
 };
 window.__ModuleLoader__={load:entry=>{
  const client=entry.factory(name=>name==='react'?React:name==='react/jsx-runtime'?jsxRuntime:name==='react-dom'?ReactDOM:name==='@deepseek-ai/dsh-client-ui-primitives'?primitives:(()=>{throw Error('Unknown fixture module '+name)})());
- client.apply({slots:{inject:(_name,fn)=>fn(),register:(_entry,component)=>{window.ImageRow=component;return ()=>{}}}});
+ const context = {
+  inject: (_services, apply) => apply(context),
+  uiConversation: { imageUrl(sessionId, attachment) {
+   window.mcpSessions.push(sessionId);
+   return window.fixtureLoad(attachment);
+  } },
+  slots: {
+   inject: (_name, apply) => apply(),
+   register: (entry, component) => {
+    if (entry.key === 'read_image') window.ImageRow = component;
+    else if (entry.name === 'conversation.chat.turnTail') {
+     window.McpImageTail = component;
+     window.mcpInjectedProps = entry.inject();
+    }
+    return () => {};
+   }
+  }
+ };
+ client.apply(context);
 }};
 window.loads=[];window.deferred=[];window.failIds=new Set();window.delayIds=new Set();
 const root=createRoot(document.getElementById('app'));
@@ -43,3 +61,18 @@ window.mountFixture=(references,options={})=>{
 };
 window.unmountFixture=()=>ReactDOM.flushSync(()=>root.render(null));
 window.resolveLoads=()=>{window.delayIds.clear();for(const resolve of window.deferred.splice(0))resolve();};
+window.mountMcpFixture = (references) => {
+ window.mcpSessions = [];
+ const calls = [{ root: {
+  kind: 'tool-result', name: 'mcp__test__capture',
+  content: references.map(attachment => ({ type: 'image', attachment }))
+ } }];
+ const source = { subscribe: () => () => {}, getSnapshot: () => calls };
+ const useChat = select => select({ nodes: { turnDataSource(turn, kind) {
+  if (turn !== 4 || kind !== 'tool-call') throw Error('Unexpected turn data query');
+  return source;
+ } } });
+ ReactDOM.flushSync(() => root.render(h(window.McpImageTail, {
+  ...window.mcpInjectedProps, turn: { turn: 4 }, sessionId: 'mcp-session', useChat, t
+ })));
+};

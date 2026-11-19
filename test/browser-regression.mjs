@@ -86,6 +86,23 @@ try{
   await page.locator('.dri-frame').scrollIntoViewIfNeeded();
   await page.waitForFunction(()=>document.querySelector('.dri-frame img')?.naturalWidth===400);
   assert.equal((await page.evaluate(()=>window.loads)).length,1);checks.push('offscreen frames defer host loader until near viewport');
+  await page.evaluate(() => {
+   document.getElementById('app').style.marginTop = '';
+   window.mountMcpFixture([window.makeReference('mcp-first', 400, 300), window.makeReference('mcp-second', 500, 300)]);
+  });
+  const mcpGallery = page.getByRole('region', { name: 'MCP 图片' });
+  const secondPreview = mcpGallery.getByRole('img', { name: 'mcp-second.png' });
+  await secondPreview.waitFor();
+  assert.equal(await mcpGallery.getByRole('img').count(), 2);
+  await secondPreview.click();
+  await page.waitForFunction(() => document.querySelector('.dri-lbImg')?.naturalWidth === 500);
+  await page.keyboard.press('ArrowLeft');
+  await page.waitForFunction(() => document.querySelector('.dri-lbImg')?.naturalWidth === 400);
+  await page.keyboard.press('Escape');
+  assert.deepEqual([...new Set(await page.evaluate(() => window.mcpSessions))], ['mcp-session']);
+  await page.evaluate(() => window.mountMcpFixture([]));
+  await mcpGallery.waitFor({ state: 'detached' });
+  checks.push('MCP turn gallery loads from its own session and opens the shared lightbox');
   report.checks=checks;assert.deepEqual(errors,[]);
  }
  await writeFile(path.join(out,'results.json'),JSON.stringify(report,null,2)+'\n');

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.0
+
+- Preview MCP images admitted as session attachments in a per-turn gallery on DSH 0.2.2 Web.
+- Document native Markdown image previews and the host requirement for MCP audio playback.
+
 ## 0.4.0
 
 - Show every validated image in a result, with uncropped previews and gallery navigation.

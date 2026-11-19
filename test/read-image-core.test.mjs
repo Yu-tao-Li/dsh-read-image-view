@@ -12,6 +12,7 @@ import assert from "node:assert/strict";
 import {
 	imageCardModel,
 	imageAttachments,
+	mcpImageAttachments,
 	boundedPan,
 	anchoredZoom,
 	attachmentCacheKey,
@@ -49,6 +50,23 @@ const VALID_ATTACHMENT = {
 	height: 320,
 	name: "x.png"
 };
+
+test("mcpImageAttachments collects valid images from MCP results and nested calls in display order", () => {
+	const second = { ...VALID_ATTACHMENT, attachmentId: "sha256:second" };
+	const image = (attachment) => ({ type: "image", attachment });
+	const mcp = (content, extra = {}) => settledNode(content, {
+		call: { name: "mcp__demo__capture", argsRaw: "{}" }, ...extra
+	});
+	const calls = [
+		{ root: settledNode([image(VALID_ATTACHMENT)]) },
+		{ root: mcp([{ type: "text", text: "caption" }, image(VALID_ATTACHMENT), image({})], {
+			subCalls: [mcp([image(second)], { call: null, name: "mcp__other__capture" })]
+		}) },
+		{ root: mcp([image(second)], { isError: true }) },
+		{ root: mcp([{ type: "text", text: "audio result unsupported" }]) }
+	];
+	assert.deepEqual(mcpImageAttachments(calls), [VALID_ATTACHMENT, second]);
+});
 
 function withGlobalCrypto(value, fn) {
 	const descriptor = Object.getOwnPropertyDescriptor(globalThis, "crypto");
