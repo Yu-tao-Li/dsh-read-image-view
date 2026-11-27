@@ -51,7 +51,8 @@ window.fixtureLoad=async ref=>{
 window.makeReference=(id,width=120,height=2400)=>({attachmentId:'sha256:'+id,mediaType:'image/png',width,height,bytes:123,name:id+'.png'});
 window.mountFixture=(references,options={})=>{
  window.references=references;
- const block={kind:'tool-result',callId:'fixture-read',call:{name:'read_image',argsRaw:'{"file_path":"fixture.png"}'},content:references.map(attachment=>({type:'image',attachment})),isError:false};
+ const argsRaw = JSON.stringify(options.args ?? { file_path: 'fixture.png' });
+ const block={kind:'tool-result',callId:'fixture-read',call:{name:'read_image',argsRaw},content:references.map(attachment=>({type:'image',attachment})),isError:false};
  const props={phase:'result',toolName:'read_image',block,callId:'fixture-read',cwd:'/fixture',inspect:()=>{},t,loadImage:window.fixtureLoad};
  if(options.useChat)props.useChat=()=>options.useChat;
  // Scene changes must commit before Playwright queries the next scene. React

@@ -182,7 +182,13 @@ window.__ModuleLoader__.load({
 		  const pan = anchoredZoom(previous.pan,previous.pct,next,x,y);
 		  return {pct:next,fit:false,pan:boundedPan(pan.x,pan.y,natural.w*next/100,natural.h*next/100,viewport.w,viewport.h)};
 		 });
-		 const move = delta => { pointers.current.clear();gesture.current=null;setIndex(value=>Math.max(0,Math.min(gallery.length-1,value+delta))); };
+		 const move = delta => {
+		  pointers.current.clear();
+		  gesture.current = null;
+		  // At the first or last image the focused navigation button can become disabled.
+		  dialogRef.current.focus();
+		  setIndex(value => Math.max(0, Math.min(gallery.length - 1, value + delta)));
+		 };
 		 react.useEffect(()=>{
 		  const dialog=dialogRef.current,opener=document.activeElement,overflow=document.body.style.overflow;
 		  document.body.style.overflow='hidden';dialog.showModal();
@@ -338,16 +344,19 @@ window.__ModuleLoader__.load({
 			const [expanded, setExpanded] = react.useState(true);
 			const done = phase === "result";
 			const gallery = done ? imageAttachments(block) ?? [] : [];
-			const argsRaw = (done ? block.call?.argsRaw : block.argsRaw) ?? "";
+			const argsRaw = (done ? block.call?.argsRaw : undefined) ?? block.argsRaw ?? "";
 			const state = !done ? "running"
 				: block.error?.code === "interrupted" ? "stopped" : block.isError ? "error" : "ok";
 			const parsed = parseArgs(argsRaw);
 			const args = typeof parsed === "object" && parsed !== null ? parsed : {};
-			const rawSummary = pickString(args, FILE_PATH_KEYS)
-				?? Object.values(args).find((value) => typeof value === "string" && value !== "") ?? argsRaw;
+			const paths = Array.isArray(args.sources) ? args.sources.filter(path => typeof path === "string" && path.trim()) : [];
+			const pathSummary = paths.length > 0
+				? paths.map(path => relativizeToCwd(path, cwd)).join(", ")
+				: relativizeToCwd(pickString(args, FILE_PATH_KEYS)
+					?? Object.values(args).find((value) => typeof value === "string" && value !== "") ?? argsRaw, cwd);
 			const output = done ? settledOutputText(block) : null;
 			const errorSummary = state === "error" && output !== null ? firstLine(output) : null;
-			const summary = errorSummary ?? firstLine(relativizeToCwd(rawSummary, cwd));
+			const summary = errorSummary ?? firstLine(pathSummary);
 			const hasGallery = gallery.length > 0 && typeof loadImage === "function";
 			const expandable = hasGallery || output !== null;
 			const status = state === "running" ? t("row.running")

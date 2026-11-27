@@ -1,6 +1,6 @@
 {
   "name": "dsh-read-image-view",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Display DSH read_image results as complete inline previews and a keyboard/touch image gallery, with native-resolution zoom and session-authorized loading. 在 DSH 对话中完整预览图片，支持多图切换、键盘与触控缩放。",
   "type": "module",
   "main": "lib/index.js",

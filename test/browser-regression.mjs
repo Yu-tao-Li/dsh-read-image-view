@@ -22,7 +22,9 @@ const errors=[];page.on('pageerror',error=>errors.push(String(error)));
 const url=`http://127.0.0.1:${server.address().port}`;
 try{
  await page.goto(url);await page.waitForFunction(()=>!!window.ImageRow);
- await page.evaluate(()=>window.mountFixture([window.makeReference('tall'),window.makeReference('wide',2400,120),window.makeReference('square',200,200)]));
+ await page.evaluate(baseline => window.mountFixture([
+  window.makeReference('tall'), window.makeReference('wide', 2400, 120), window.makeReference('square', 200, 200)
+ ], baseline ? {} : { args: { sources: ['/fixture/tall.png', '/fixture/wide.png', '/fixture/square.png'] } }), baseline);
  await page.waitForFunction(()=>document.querySelector('.dri-frame img')?.naturalWidth>0);
  const frames=await page.locator('.dri-frame').count();
  const first=page.locator('.dri-frame').first();
@@ -35,6 +37,7 @@ try{
  if(!baseline){
   const checks=[];
   assert.equal(frames,3);assert.ok(bottomBluePixels>0);assert.ok(focusContained);
+  assert.equal(await page.locator('.dri-summary').innerText(), 'tall.png, wide.png, square.png');
   await page.keyboard.press('ArrowRight');
   await page.waitForFunction(()=>document.querySelector('.dri-lbCaption')?.textContent.includes('wide.png')&&document.querySelector('.dri-lbImg')?.naturalWidth===2400);
   assert.equal(await page.locator('.dri-lbCounter').innerText(),'2 / 3');
@@ -44,6 +47,15 @@ try{
   for(let n=0;n<15;n++){await page.keyboard.press('Tab');assert.ok(await page.evaluate(()=>document.querySelector('dialog').contains(document.activeElement)));}
   await page.keyboard.press('Escape');assert.equal(await page.locator('dialog').count(),0);
   assert.ok(await first.evaluate(button=>button===document.activeElement));
+  await page.locator('.dri-frame').nth(1).click();
+  assert.equal(await page.locator('.dri-lbCounter').innerText(), '2 / 3');
+  await page.getByRole('button', {name: '上一张', exact: true}).click();
+  await page.waitForFunction(() => document.querySelector('.dri-lbImg')?.naturalWidth === 120);
+  assert.ok(await page.evaluate(() => document.querySelector('dialog').contains(document.activeElement)));
+  await page.keyboard.press('0');
+  await page.keyboard.press('=');
+  assert.equal(await page.locator('.dri-lbPct').innerText(), '125%');
+  await page.keyboard.press('Escape');
   checks.push('all images navigate; native 1:1; bounds; Tab trap; Escape and focus restoration');
   await page.setViewportSize({width:390,height:844});
   await page.evaluate(()=>window.mountFixture([window.makeReference('long-mobile',600,12000)],{key:'mobile'}));
