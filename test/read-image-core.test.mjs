@@ -106,6 +106,29 @@ test("randomUuid: retains a valid UUID shape without Web Crypto", () => {
 
 const ENVELOPE = "<path>x.png</path>\n<type>image</type>\n<content>\nimage/png image, 480x320 px, 3721 bytes\n</content>";
 
+test("replacement read_image returns every attachment in result order", () => {
+	const second = { ...VALID_ATTACHMENT, attachmentId: "sha256:second", name: "y.png" };
+	const parts = [
+		{ type: "image", attachment: VALID_ATTACHMENT },
+		{ type: "text", text: ENVELOPE },
+		{ type: "image", attachment: second }
+	];
+	const node = settledNode(parts, {
+		call: { name: "read_image", argsRaw: JSON.stringify({ sources: ["x.png", "y.png"] }) }
+	});
+	assert.deepEqual(imageAttachments(node), [VALID_ATTACHMENT, second]);
+	const card = imageCardModel(node);
+	assert.deepEqual(card.attachments, [VALID_ATTACHMENT, second]);
+	assert.equal(card.attachment, VALID_ATTACHMENT);
+	assert.equal(card.text, ENVELOPE);
+	assert.deepEqual(imageAttachments({ ...node, call: undefined, name: "read_image", argsRaw: "{}" }), card.attachments);
+	assert.equal(imageAttachments({ ...node, isError: true }), null);
+	assert.equal(imageAttachments({ ...node, content: [{ type: "text", text: "Answer" }] }), null);
+	for (const name of ["web_fetch", "mcp__demo__capture"]) {
+		assert.equal(imageAttachments({ ...node, call: { ...node.call, name } }), null);
+	}
+});
+
 test("imageCardModel: settled node with a valid image part", () => {
 	const ref = { ...VALID_ATTACHMENT };
 	const node = settledNode([

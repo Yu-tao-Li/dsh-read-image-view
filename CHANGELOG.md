@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.2
+
+- Support replacement `read_image` tools with custom arguments, including `dsh-read-image-plus` with `sources`. All validated images from a call appear in one gallery in result order.
+- Keep keyboard focus in the gallery when navigation reaches the first or last image so zoom and arrow keys continue to work.
+
 ## 0.5.1
 
 - Keep each `read_image` preview with the tool invocation and input path.

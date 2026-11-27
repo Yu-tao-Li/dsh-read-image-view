@@ -16,7 +16,7 @@
 在 DSH 插件市场搜索 **dsh-read-image-view**，安装后重启 Harness。命令行 Web 用户也可以运行：
 
 ```powershell
-dsh plugin --profile web add npm:dsh-read-image-view@0.5.1
+dsh plugin --profile web add npm:dsh-read-image-view@0.5.2
 ```
 
 随后重启 `dsh web`。让模型读取图片，点预览即可打开画廊。
@@ -27,7 +27,8 @@ dsh plugin --profile web add npm:dsh-read-image-view@0.5.1
 
 ### MCP 附件与 Markdown 图片
 
-- 在 DSH 0.2.2 Web 中，保存为会话附件的 MCP 图片显示在对应的工具结果下方。每次 `read_image` 调用也会显示自己的文件参数和图片。
+- 在 DSH 0.2.2 Web 中，保存为会话附件的 MCP 图片显示在对应的工具结果下方。
+- 内置 `read_image` 和使用 `sources` 的替换工具（如 `dsh-read-image-plus`）都支持图片卡片。一次调用返回多张图片时，点击任一张即可按返回顺序切换。
 - Markdown 的 `![说明](./图.png)` 由 DSH 自带渲染器预览。相对路径以当前会话的工作区为基准。
 - MCP 音频播放依赖宿主提供会话可读取的音频附件。DSH 0.2.2 当前把音频结果投影为文字提示。
 
@@ -89,7 +90,7 @@ Client-only, with zero production dependencies and the host's session-authorized
 Search for **dsh-read-image-view** in the DSH plugin marketplace, install and restart Harness. For a command-line Web installation:
 
 ```powershell
-dsh plugin --profile web add npm:dsh-read-image-view@0.5.1
+dsh plugin --profile web add npm:dsh-read-image-view@0.5.2
 ```
 
 Restart `dsh web`, ask the model to read an image, then click its preview.
@@ -100,7 +101,8 @@ If the host collapses the completed turn or image-reading tool process, expand t
 
 ### MCP attachments and Markdown images
 
-- On DSH 0.2.2 Web, MCP images saved as session attachments appear below their tool result. Each `read_image` invocation retains its own file path and preview.
+- On DSH 0.2.2 Web, MCP images saved as session attachments appear below their tool result.
+- The built-in `read_image` and replacements such as `dsh-read-image-plus` with `sources` support image cards. Open any image to browse all images from that call in result order.
 - DSH renders Markdown images such as `![Description](./figure.png)` inline. Relative paths use the session workspace as their base.
 - MCP audio playback requires session-readable audio attachments from the host. DSH 0.2.2 currently projects audio results as text notices.
 
